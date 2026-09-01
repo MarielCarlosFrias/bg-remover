@@ -1,0 +1,15 @@
+# Build
+build/
+*.o
+*.so
+
+# Modelo (arquivo grande, baixado à parte)
+*.onnx
+
+# ONNX Runtime extraído (dependência externa, não versionar)
+onnxruntime-linux-x64-*/
+
+# Arquivos de teste locais
+teste.png
+teste.jpg
+resultado*.png
