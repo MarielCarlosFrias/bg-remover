@@ -1,10 +1,11 @@
 cmake_minimum_required(VERSION 3.16)
-project(u2netp_cli)
+project(bg_remover)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_AUTOMOC ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Core Gui)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets)
 
 set(ONNX_DIR "${CMAKE_SOURCE_DIR}/onnxruntime-linux-x64-1.19.0")
 include_directories("${ONNX_DIR}/include")
@@ -14,10 +15,17 @@ set_target_properties(onnxruntime PROPERTIES
     IMPORTED_LOCATION "${ONNX_DIR}/lib/libonnxruntime.so"
 )
 
-add_executable(u2netp_cli main.cpp backgroundremover.cpp)
-target_link_libraries(u2netp_cli Qt6::Core Qt6::Gui onnxruntime)
+add_executable(bg_remover_gui
+    main.cpp
+    mainwindow.cpp
+    mainwindow.h
+    backgroundremover.cpp
+    backgroundremover.h)
 
-set_target_properties(u2netp_cli PROPERTIES
+target_link_libraries(bg_remover_gui
+    Qt6::Core Qt6::Gui Qt6::Widgets onnxruntime)
+
+set_target_properties(bg_remover_gui PROPERTIES
     BUILD_RPATH "${ONNX_DIR}/lib"
     INSTALL_RPATH "${ONNX_DIR}/lib"
 )
