@@ -1,0 +1,9 @@
+#!/bin/bash
+# Verifica se funcoes M5 estao presentes no mainwindow.cpp
+
+COUNT=$(grep -c "applyAlphaThreshold\|applyEdgeRefinement" "@CMAKE_SOURCE_DIR@/mainwindow.cpp")
+if [ "$COUNT" -lt 4 ]; then
+    echo "ERRO: Funcoes M5 ausentes! Encontradas: $COUNT (esperado >= 4)"
+    exit 1
+fi
+echo "OK: Funcoes M5 presentes ($COUNT ocorrencias)"
