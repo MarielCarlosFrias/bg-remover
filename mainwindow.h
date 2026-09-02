@@ -15,6 +15,8 @@ class QProgressBar;
 class QPlainTextEdit;
 class QComboBox;
 class QCheckBox;
+class QSpinBox;
+class MaskEditCanvas;
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -33,12 +35,13 @@ private slots:
     void processBatchStep();
     void modelIndexChanged(int index);
     void bgColorChanged(int index);
+    void editingDone();
 
 private:
     void setOriginal(const QImage& img);
     void setResult(const QImage& img);
     static QImage addAlphaBackground(const QImage& img,
-                                         const QColor& bgColor = QColor());
+                                         const QColor& bgColor);
     QImage applyEdgeRefinement(const QImage& input,
                                    float intensity);
     QImage applyAlphaThreshold(const QImage& input,
@@ -47,7 +50,6 @@ private:
     QColor currentBackgroundColor() const;
 
     QLabel* originalLabel_;
-    QLabel* resultLabel_;
     QScrollArea* originalScroll_;
     QScrollArea* resultScroll_;
     QComboBox* modelCombo_;
@@ -61,11 +63,15 @@ private:
     QPushButton* btnSelectFolder_;
     QPushButton* btnSelectOutput_;
     QPushButton* btnProcessBatch_;
+    QPushButton* btnUndo_;
     QComboBox* bgColorCombo_;
+    QComboBox* brushModeCombo_;
+    QSpinBox* brushRadiusSpin_;
     QCheckBox* refineCheckBox_;
     QCheckBox* noiseCheckBox_;
     QProgressBar* progressBar_;
     QPlainTextEdit* logEdit_;
+    MaskEditCanvas* maskEditCanvas_;
 
     QString batchFolder_;
     QString batchOutputDir_;

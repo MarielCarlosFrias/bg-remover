@@ -1,4 +1,5 @@
 #include "mainwindow.h"
+#include "maskeditcanvas.h"
 #include <QFileDialog>
 #include <QMessageBox>
 #include <QScrollArea>
@@ -9,11 +10,11 @@
 #include <QPlainTextEdit>
 #include <QComboBox>
 #include <QCheckBox>
+#include <QSpinBox>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QApplication>
 #include <QPixmap>
-#include <QPainter>
 #include <QSizePolicy>
 #include <QDir>
 #include <QFileInfo>
@@ -60,7 +61,6 @@ QImage MainWindow::addAlphaBackground(
 {
     if (img.isNull()) return QImage();
     QImage result(img.size(), QImage::Format_RGBA8888);
-
     if (!bgColor.isValid()) {
         for (int y = 0; y < img.height(); ++y) {
             for (int x = 0; x < img.width(); ++x) {
@@ -74,7 +74,6 @@ QImage MainWindow::addAlphaBackground(
     } else {
         result.fill(bgColor);
     }
-
     for (int y = 0; y < img.height(); ++y) {
         for (int x = 0; x < img.width(); ++x) {
             QRgb src = img.pixel(x, y);
@@ -97,7 +96,6 @@ QImage MainWindow::addAlphaBackground(
 MainWindow::MainWindow(QWidget* parent, const QString& modelPath)
     : QMainWindow(parent),
       originalLabel_(new QLabel("Nenhuma imagem")),
-      resultLabel_(new QLabel("Sem resultado")),
       originalScroll_(new QScrollArea),
       resultScroll_(new QScrollArea),
       modelCombo_(new QComboBox),
@@ -111,22 +109,29 @@ MainWindow::MainWindow(QWidget* parent, const QString& modelPath)
       btnSelectFolder_(new QPushButton("...")),
       btnSelectOutput_(new QPushButton("...")),
       btnProcessBatch_(new QPushButton("Processar lote")),
+      btnUndo_(new QPushButton("Desfazer")),
       bgColorCombo_(new QComboBox),
+      brushModeCombo_(new QComboBox),
+      brushRadiusSpin_(new QSpinBox),
       refineCheckBox_(new QCheckBox("Refinar bordas")),
       noiseCheckBox_(new QCheckBox("Limpar ruído")),
       progressBar_(new QProgressBar),
       logEdit_(new QPlainTextEdit),
+      maskEditCanvas_(new MaskEditCanvas(this)),
       batchIndex_(0),
       batchRunning_(false),
       customBgColor_(QColor())
 {
     originalLabel_->setAlignment(Qt::AlignCenter);
-    resultLabel_->setAlignment(Qt::AlignCenter);
 
     originalScroll_->setWidget(originalLabel_);
     originalScroll_->setWidgetResizable(true);
     originalScroll_->setAlignment(Qt::AlignCenter);
-    resultScroll_->setWidget(resultLabel_);
+
+    maskEditCanvas_->setMinimumSize(320, 240);
+    maskEditCanvas_->setSizePolicy(
+        QSizePolicy::Expanding, QSizePolicy::Expanding);
+    resultScroll_->setWidget(maskEditCanvas_);
     resultScroll_->setWidgetResizable(true);
     resultScroll_->setAlignment(Qt::AlignCenter);
 
@@ -157,6 +162,19 @@ MainWindow::MainWindow(QWidget* parent, const QString& modelPath)
     bgColorCombo_->setCurrentIndex(0);
     bgColorCombo_->setMaximumWidth(160);
 
+    brushModeCombo_->addItem("Restaurar");
+    brushModeCombo_->addItem("Apagar");
+    brushModeCombo_->setCurrentIndex(0);
+
+    brushRadiusSpin_->setRange(1, 200);
+    brushRadiusSpin_->setValue(10);
+    brushRadiusSpin_->setSuffix(" px");
+
+    maskEditCanvas_->setMode(MaskEditCanvas::Restore);
+    maskEditCanvas_->setBrushRadius(brushRadiusSpin_->value());
+
+    btnUndo_->setEnabled(false);
+
     outputDirEdit_->setReadOnly(true);
 
     progressBar_->setRange(0, 100);
@@ -182,6 +200,14 @@ MainWindow::MainWindow(QWidget* parent, const QString& modelPath)
     bgLayout->addWidget(bgColorCombo_);
     bgLayout->addStretch();
 
+    auto* brushLayout = new QHBoxLayout();
+    brushLayout->addWidget(new QLabel("Pincel:"));
+    brushLayout->addWidget(brushModeCombo_);
+    brushLayout->addWidget(new QLabel("Tamanho:"));
+    brushLayout->addWidget(brushRadiusSpin_);
+    brushLayout->addWidget(btnUndo_);
+    brushLayout->addStretch();
+
     auto* btnLayout = new QHBoxLayout();
     btnLayout->addWidget(btnOpen_);
     btnLayout->addWidget(btnRemove_);
@@ -205,6 +231,7 @@ MainWindow::MainWindow(QWidget* parent, const QString& modelPath)
     mainLayout->addLayout(topLayout);
     mainLayout->addLayout(previewLayout);
     mainLayout->addLayout(bgLayout);
+    mainLayout->addLayout(brushLayout);
     mainLayout->addLayout(btnLayout);
     mainLayout->addLayout(folderLayout);
     mainLayout->addLayout(batchLayout);
@@ -235,12 +262,38 @@ MainWindow::MainWindow(QWidget* parent, const QString& modelPath)
             this,              &MainWindow::selectOutputFolder);
     connect(btnProcessBatch_,  &QPushButton::clicked,
             this,              &MainWindow::processBatch);
+    connect(btnUndo_,          &QPushButton::clicked,
+            this,              [this]() {
+        maskEditCanvas_->undo();
+        resultImage_ = maskEditCanvas_->getEditedImage();
+        btnUndo_->setEnabled(maskEditCanvas_->hasEdits());
+    });
     connect(modelCombo_, QOverload<int>::of(
                 &QComboBox::currentIndexChanged),
             this,              &MainWindow::modelIndexChanged);
     connect(bgColorCombo_, QOverload<int>::of(
                 &QComboBox::currentIndexChanged),
             this,              &MainWindow::bgColorChanged);
+    connect(maskEditCanvas_, &MaskEditCanvas::editingDone,
+            this,              &MainWindow::editingDone);
+    connect(brushModeCombo_, QOverload<int>::of(
+                &QComboBox::currentIndexChanged),
+            this, [this](int idx) {
+        maskEditCanvas_->setMode(
+            idx == 0 ? MaskEditCanvas::Restore
+                     : MaskEditCanvas::Erase);
+    });
+    connect(brushRadiusSpin_, QOverload<int>::of(
+                &QSpinBox::valueChanged),
+            this, [this](int value) {
+        maskEditCanvas_->setBrushRadius(value);
+    });
+}
+
+void MainWindow::editingDone()
+{
+    resultImage_ = maskEditCanvas_->getEditedImage();
+    btnUndo_->setEnabled(maskEditCanvas_->hasEdits());
 }
 
 void MainWindow::openImage() {
@@ -256,6 +309,8 @@ void MainWindow::openImage() {
     }
     originalImage_ = img;
     remover_.reset();
+    maskEditCanvas_->clearEdits();
+    btnUndo_->setEnabled(false);
     setOriginal(img);
     logEdit_->appendPlainText("[INFO] Carregada: " + path);
 }
@@ -295,7 +350,7 @@ void MainWindow::bgColorChanged(int index) {
         }
     }
     if (!resultImage_.isNull()) {
-        setResult(resultImage_);
+        maskEditCanvas_->setBackgroundColor(currentBackgroundColor());
     }
 }
 
@@ -323,6 +378,9 @@ void MainWindow::removeBackground() {
             logEdit_->appendPlainText(
                 "[INFO] Bordas refinadas.");
         }
+        maskEditCanvas_->setImage(
+            resultImage_, currentBackgroundColor());
+        btnUndo_->setEnabled(false);
         setResult(resultImage_);
         logEdit_->appendPlainText("[OK] Fundo removido.");
     } catch (const Ort::Exception& e) {
@@ -347,8 +405,8 @@ void MainWindow::saveResult() {
     QFileInfo fi(path);
     if (fi.suffix().toLower() != "png") path += ".png";
 
-    QImage toSave;
     QColor bg = currentBackgroundColor();
+    QImage toSave;
     if (!bg.isValid()) {
         toSave = resultImage_.copy();
     } else {
@@ -426,6 +484,7 @@ void MainWindow::processBatch() {
     btnSelectFolder_->setEnabled(false);
     btnSelectOutput_->setEnabled(false);
     btnLoadModel_->setEnabled(false);
+    btnUndo_->setEnabled(false);
     progressBar_->setRange(0, batchFiles_.size());
     progressBar_->setValue(0);
     progressBar_->setVisible(true);
@@ -454,6 +513,7 @@ void MainWindow::processBatch() {
         btnSelectFolder_->setEnabled(true);
         btnSelectOutput_->setEnabled(true);
         btnLoadModel_->setEnabled(true);
+        btnUndo_->setEnabled(false);
         progressBar_->setVisible(false);
         return;
     }
@@ -478,6 +538,7 @@ void MainWindow::processBatchStep() {
         btnSelectFolder_->setEnabled(true);
         btnSelectOutput_->setEnabled(true);
         btnLoadModel_->setEnabled(true);
+        btnUndo_->setEnabled(false);
         progressBar_->setVisible(false);
         return;
     }
@@ -588,11 +649,6 @@ void MainWindow::setOriginal(const QImage& img) {
 }
 
 void MainWindow::setResult(const QImage& img) {
-    QColor bg = currentBackgroundColor();
-    QImage shown = addAlphaBackground(img, bg);
-    resultLabel_->setPixmap(
-        QPixmap::fromImage(shown).scaled(
-            resultScroll_->size(),
-            Qt::KeepAspectRatio,
-            Qt::SmoothTransformation));
+    Q_UNUSED(img)
+    maskEditCanvas_->update();
 }
