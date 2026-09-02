@@ -17,7 +17,12 @@ BackgroundRemover::BackgroundRemover(const std::string& model_path)
     sess_opts.SetGraphOptimizationLevel(
         GraphOptimizationLevel::ORT_ENABLE_ALL);
 
+#ifdef _WIN32
+    std::wstring wpath(model_path.begin(), model_path.end());
+    session_ = Ort::Session(env_, wpath.c_str(), sess_opts);
+#else
     session_ = Ort::Session(env_, model_path.c_str(), sess_opts);
+#endif
 
     Ort::AllocatorWithDefaultOptions allocator;
 

@@ -12,7 +12,6 @@ endif()
 
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets)
 
-# ---- ONNX Runtime: pasta diferente por plataforma ----
 if(WIN32)
     set(ONNX_DIR "${CMAKE_SOURCE_DIR}/onnxruntime-win-x64-1.19.0")
 else()
@@ -22,7 +21,6 @@ include_directories("${ONNX_DIR}/include")
 
 add_library(onnxruntime SHARED IMPORTED)
 if(WIN32)
-    # No Windows a lib importada precisa do .dll (runtime) E do .lib (linker)
     set_target_properties(onnxruntime PROPERTIES
         IMPORTED_LOCATION "${ONNX_DIR}/lib/onnxruntime.dll"
         IMPORTED_IMPLIB "${ONNX_DIR}/lib/onnxruntime.lib"
@@ -33,7 +31,6 @@ else()
     )
 endif()
 
-# ---- GUI ----
 add_executable(bg_remover_gui
     main.cpp
     mainwindow.cpp
@@ -51,7 +48,6 @@ if(NOT WIN32)
     )
 endif()
 
-# ---- CLI batch ----
 add_executable(bg_remover_cli
     main_cli.cpp
     batchprocessor.cpp
@@ -67,7 +63,6 @@ if(NOT WIN32)
     )
 endif()
 
-# No Windows, o .dll precisa estar do lado do .exe pra rodar direto do build/
 if(WIN32)
     add_custom_command(TARGET bg_remover_gui POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
@@ -79,7 +74,6 @@ if(WIN32)
             $<TARGET_FILE_DIR:bg_remover_cli>)
 endif()
 
-# ---- teste ----
 enable_testing()
 add_executable(test_inference
     test_inference.cpp
@@ -90,9 +84,6 @@ target_link_libraries(test_inference
 add_test(NAME inference_test
     COMMAND test_inference "${CMAKE_SOURCE_DIR}/u2netp.onnx")
 
-# Verificacao preventiva das funcoes M5 -- SO no Linux/Mac, pois
-# depende de 'bash' que nao existe por padrao no Windows (travaria
-# o build inteiro no PRE_BUILD antes de compilar qualquer coisa)
 configure_file(
     "${CMAKE_SOURCE_DIR}/check_m5_functions.sh.in"
     "${CMAKE_BINARY_DIR}/check_m5_functions.sh"
@@ -105,7 +96,6 @@ if(NOT WIN32)
     )
 endif()
 
-# ---- instalacoes + empacotamento ----
 if(WIN32)
     install(TARGETS bg_remover_gui bg_remover_cli RUNTIME DESTINATION .)
     install(FILES "${ONNX_DIR}/lib/onnxruntime.dll" DESTINATION .)
