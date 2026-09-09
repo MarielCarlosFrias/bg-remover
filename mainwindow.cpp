@@ -183,6 +183,7 @@ MainWindow::MainWindow(QWidget* parent, const QString& modelPath)
 
     logEdit_->setReadOnly(true);
     logEdit_->setMaximumHeight(150);
+    logEdit_->setVisible(false);
     logEdit_->setPlaceholderText("Log do processamento...");
 
     auto* topLayout = new QHBoxLayout();
@@ -236,7 +237,17 @@ MainWindow::MainWindow(QWidget* parent, const QString& modelPath)
     mainLayout->addLayout(folderLayout);
     mainLayout->addLayout(batchLayout);
     mainLayout->addWidget(progressBar_);
+    auto* btnToggleLog = new QPushButton("Mostrar log \u25be");
+    mainLayout->addWidget(btnToggleLog);
     mainLayout->addWidget(logEdit_);
+
+    connect(btnToggleLog, &QPushButton::clicked, this, [this, btnToggleLog]() {
+        bool nowVisible = !logEdit_->isVisible();
+        logEdit_->setVisible(nowVisible);
+        btnToggleLog->setText(nowVisible
+            ? QString::fromUtf8("Esconder log \u25b4")
+            : QString::fromUtf8("Mostrar log \u25be"));
+    });
 
     auto* central = new QWidget(this);
     central->setLayout(mainLayout);
@@ -244,6 +255,12 @@ MainWindow::MainWindow(QWidget* parent, const QString& modelPath)
 
     originalScroll_->setMaximumSize(640, 640);
     resultScroll_->setMaximumSize(640, 640);
+
+    btnRemove_->setStyleSheet(
+        "QPushButton { background-color: #2e7d32; color: white; "
+        "font-weight: bold; padding: 4px 12px; } "
+        "QPushButton:hover { background-color: #388e3c; } "
+        "QPushButton:disabled { background-color: #555; color: #999; }");
 
     setWindowTitle("BG Remover \u2014 U\u00b2-Netp");
     resize(1200, 800);
@@ -360,6 +377,11 @@ void MainWindow::removeBackground() {
             "Abra uma imagem primeiro.");
         return;
     }
+
+    setCursor(Qt::WaitCursor);
+    btnRemove_->setEnabled(false);
+    QApplication::processEvents();
+
     try {
         remover_ = std::make_unique<BackgroundRemover>(
             modelPathEdit_->text().toStdString());
@@ -390,6 +412,9 @@ void MainWindow::removeBackground() {
         QMessageBox::critical(this, "Erro",
             QString("Falha:\n") + e.what());
     }
+
+    btnRemove_->setEnabled(true);
+    unsetCursor();
 }
 
 void MainWindow::saveResult() {
