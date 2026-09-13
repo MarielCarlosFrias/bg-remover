@@ -20,6 +20,7 @@
 #include <QFileInfo>
 #include <QTimer>
 #include <QFile>
+#include <QRegularExpression>
 #include <QSet>
 #include <QColorDialog>
 #include <algorithm>
@@ -28,6 +29,8 @@
 static const QSet<QString> kImageExts = {
     "png", "jpg", "jpeg", "bmp", "webp", "tiff", "tif"
 };
+static const QRegularExpression kGeneratedOutputName(
+    "_rembg(?:_[0-9]+)?$");
 static constexpr float kAlphaThreshold = 30.0f;
 
 QString MainWindow::resolveModelPath(const QString& name) {
@@ -119,6 +122,8 @@ MainWindow::MainWindow(QWidget* parent, const QString& modelPath)
       logEdit_(new QPlainTextEdit),
       maskEditCanvas_(new MaskEditCanvas(this)),
       batchIndex_(0),
+      batchOk_(0),
+      batchErrors_(0),
       batchRunning_(false),
       customBgColor_(QColor())
 {
@@ -479,14 +484,37 @@ void MainWindow::processBatch() {
     batchFolder_ = folderEdit_->text();
     batchOutputDir_ = outputDirEdit_->text();
 
-    QStringList allFiles = QDir(batchFolder_).entryList(
+    QDir inputDir(batchFolder_);
+    QDir outputDir(batchOutputDir_);
+    const bool outputIsInputDirectory =
+        QDir::cleanPath(inputDir.absolutePath())
+        == QDir::cleanPath(outputDir.absolutePath());
+    QStringList allFiles = inputDir.entryList(
         QDir::Files | QDir::NoDotAndDotDot);
     batchFiles_.clear();
+    batchOutputPaths_.clear();
+    QSet<QString> reservedOutputPaths;
     for (const QString& f : allFiles) {
-        if (kImageExts.contains(
-                QFileInfo(f).suffix().toLower())) {
-            batchFiles_ << f;
+        const QFileInfo fileInfo(f);
+        const bool isGeneratedOutput = outputIsInputDirectory
+            && fileInfo.suffix().compare("png", Qt::CaseInsensitive) == 0
+            && kGeneratedOutputName.match(
+                fileInfo.completeBaseName()).hasMatch();
+        if (!kImageExts.contains(fileInfo.suffix().toLower())
+            || isGeneratedOutput) continue;
+
+        const QString outputBase = fileInfo.completeBaseName() + "_rembg";
+        QString outputPath = outputDir.absoluteFilePath(outputBase + ".png");
+        for (int suffix = 2;
+             reservedOutputPaths.contains(outputPath)
+             || QFileInfo::exists(outputPath);
+             ++suffix) {
+            outputPath = outputDir.absoluteFilePath(
+                outputBase + "_" + QString::number(suffix) + ".png");
         }
+        reservedOutputPaths.insert(outputPath);
+        batchFiles_ << f;
+        batchOutputPaths_ << outputPath;
     }
     if (batchFiles_.isEmpty()) {
         QMessageBox::warning(this, "Aviso",
@@ -521,6 +549,8 @@ void MainWindow::processBatch() {
             .arg(batchOutputDir_));
 
     batchIndex_ = 0;
+    batchOk_ = 0;
+    batchErrors_ = 0;
     batchRunning_ = true;
 
     try {
@@ -553,9 +583,8 @@ void MainWindow::processBatchStep() {
         batchRunning_ = false;
         progressBar_->setValue(batchFiles_.size());
         logEdit_->appendPlainText(
-            "[BATCH] Concluido! "
-            + QString::number(batchFiles_.size())
-            + " arquivo(s) processado(s).");
+            QString("[BATCH] Concluido: %1 OK, %2 erro(s).")
+                .arg(batchOk_).arg(batchErrors_));
         btnOpen_->setEnabled(true);
         btnRemove_->setEnabled(true);
         btnSave_->setEnabled(true);
@@ -572,13 +601,13 @@ void MainWindow::processBatchStep() {
     QString inputPath = QDir(batchFolder_)
                             .absoluteFilePath(file);
     QFileInfo fi(file);
-    QString outName = fi.baseName() + "_rembg.png";
-    QString outPath = QDir(batchOutputDir_)
-                          .absoluteFilePath(outName);
+    QString outPath = batchOutputPaths_[batchIndex_];
+    QString outName = QFileInfo(outPath).fileName();
 
     try {
         QImage img(inputPath);
         if (img.isNull()) {
+            ++batchErrors_;
             logEdit_->appendPlainText(
                 "[ERRO] Falha ao carregar: " + file);
         } else {
@@ -594,14 +623,22 @@ void MainWindow::processBatchStep() {
             if (bg.isValid()) {
                 result = addAlphaBackground(result, bg);
             }
-            result.save(outPath, "PNG");
-            logEdit_->appendPlainText(
-                "[OK] " + file + " -> " + outName);
+            if (result.save(outPath, "PNG")) {
+                ++batchOk_;
+                logEdit_->appendPlainText(
+                    "[OK] " + file + " -> " + outName);
+            } else {
+                ++batchErrors_;
+                logEdit_->appendPlainText(
+                    "[ERRO] Falha ao salvar: " + outPath);
+            }
         }
     } catch (const Ort::Exception& e) {
+        ++batchErrors_;
         logEdit_->appendPlainText(
             "[ERRO] " + file + ": " + QString(e.what()));
     } catch (const std::exception& e) {
+        ++batchErrors_;
         logEdit_->appendPlainText(
             "[ERRO] " + file + ": "
             + QString::fromStdString(e.what()));

@@ -14,10 +14,10 @@ int main(int argc, char* argv[]) {
 
     QString modelPath = argv[1];
     if (!QFile::exists(modelPath)) {
-        std::cout << "SKIP: Modelo nao encontrado: "
+        std::cerr << "FAIL: Modelo nao encontrado: "
                   << modelPath.toStdString()
                   << std::endl;
-        return 0;
+        return 1;
     }
 
     try {

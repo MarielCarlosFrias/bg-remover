@@ -83,6 +83,10 @@ target_link_libraries(test_inference
     Qt6::Core Qt6::Gui onnxruntime)
 add_test(NAME inference_test
     COMMAND test_inference "${CMAKE_SOURCE_DIR}/u2netp.onnx")
+if(NOT EXISTS "${CMAKE_SOURCE_DIR}/u2netp.onnx")
+    set_tests_properties(inference_test PROPERTIES DISABLED TRUE)
+    message(STATUS "Teste de inferencia desativado: u2netp.onnx nao encontrado")
+endif()
 
 configure_file(
     "${CMAKE_SOURCE_DIR}/check_m5_functions.sh.in"

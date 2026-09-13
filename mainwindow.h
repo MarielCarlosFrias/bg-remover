@@ -76,7 +76,10 @@ private:
     QString batchFolder_;
     QString batchOutputDir_;
     QStringList batchFiles_;
+    QStringList batchOutputPaths_;
     int batchIndex_;
+    int batchOk_;
+    int batchErrors_;
     bool batchRunning_;
     QColor customBgColor_;
 

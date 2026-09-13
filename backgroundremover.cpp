@@ -3,6 +3,7 @@
 #include <cmath>
 #include <algorithm>
 #include <array>
+#include <stdexcept>
 
 // Constantes ImageNet
 static constexpr float MEAN[3] = {0.485f, 0.456f, 0.406f};
@@ -37,6 +38,10 @@ BackgroundRemover::BackgroundRemover(const std::string& model_path)
 }
 
 QImage BackgroundRemover::removeBackground(const QImage& input) {
+    if (input.isNull()) {
+        throw std::invalid_argument("A imagem de entrada e invalida");
+    }
+
     std::vector<float> blob = buildInputBlob(input);
 
     std::vector<int64_t> input_shape = {1, 3, INPUT_SIZE, INPUT_SIZE};
@@ -54,15 +59,22 @@ QImage BackgroundRemover::removeBackground(const QImage& input) {
         &in_name, &input_tensor, 1,
         &out_name, 1);
 
-    float* mask_ptr = outputs[0].GetTensorMutableData<float>();
-    size_t mask_total = outputs[0].GetTensorTypeAndShapeInfo()
-                            .GetElementCount();
-    if (mask_total != static_cast<size_t>(INPUT_SIZE * INPUT_SIZE)) {
-        std::cerr << "[BackgroundRemover] Aviso: mascara "
-                  << "incompativel (" << mask_total
-                  << " esperado " << INPUT_SIZE * INPUT_SIZE
-                  << ")" << std::endl;
+    if (outputs.empty() || !outputs[0].IsTensor()) {
+        throw std::runtime_error("O modelo nao retornou uma mascara tensorial");
     }
+
+    const auto tensorInfo = outputs[0].GetTensorTypeAndShapeInfo();
+    const size_t expectedMaskSize = static_cast<size_t>(INPUT_SIZE * INPUT_SIZE);
+    if (tensorInfo.GetElementType()
+            != ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT
+        || tensorInfo.GetElementCount() != expectedMaskSize) {
+        throw std::runtime_error(
+            "Mascara de saida incompativel: esperado tensor float com "
+            + std::to_string(expectedMaskSize) + " elementos, recebido "
+            + std::to_string(tensorInfo.GetElementCount()));
+    }
+
+    const float* mask_ptr = outputs[0].GetTensorData<float>();
 
     QImage alpha = buildAlphaMask(
         mask_ptr, input.width(), input.height());

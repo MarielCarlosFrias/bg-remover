@@ -3,12 +3,15 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QImage>
+#include <QRegularExpression>
 #include <QSet>
 #include <iostream>
 
 static const QSet<QString> kImageExts = {
     "png", "jpg", "jpeg", "bmp", "webp", "tiff", "tif"
 };
+static const QRegularExpression kGeneratedOutputName(
+    "_rembg(?:_[0-9]+)?$");
 
 BatchProcessor::BatchProcessor(const QString& modelPath)
     : modelPath_(modelPath)
@@ -34,13 +37,25 @@ BatchProcessor::Result BatchProcessor::processDirectory(
         return result;
     }
 
+    // BUGFIX: entryList(filters, ...) e case-sensitive no Linux
+    // (mesmo bug ja corrigido antes em mainwindow.cpp processBatch()) —
+    // "foto.JPG" seria ignorado. Filtro manual case-insensitive.
     QStringList files;
-    QStringList filters;
-    for (const QString& ext : kImageExts) {
-        filters << QString("*.") + ext;
+    const bool outputIsInputDirectory =
+        QDir::cleanPath(dir.absolutePath())
+        == QDir::cleanPath(outDir.absolutePath());
+    QStringList allFiles = dir.entryList(QDir::Files, QDir::Name);
+    for (const QString& f : allFiles) {
+        const QFileInfo fileInfo(f);
+        const bool isGeneratedOutput = outputIsInputDirectory
+            && fileInfo.suffix().compare("png", Qt::CaseInsensitive) == 0
+            && kGeneratedOutputName.match(
+                fileInfo.completeBaseName()).hasMatch();
+        if (kImageExts.contains(fileInfo.suffix().toLower())
+            && !isGeneratedOutput) {
+            files << f;
+        }
     }
-    QStringList allFiles = dir.entryList(filters, QDir::Files, QDir::Name);
-    files = allFiles; // já vem sem duplicatas do entryList com filtros múltiplos
 
     if (files.isEmpty()) {
         std::cout << "Nenhuma imagem encontrada em: "
@@ -54,13 +69,24 @@ BatchProcessor::Result BatchProcessor::processDirectory(
 
     try {
         BackgroundRemover remover(modelPath_.toStdString());
+        QSet<QString> reservedOutputPaths;
 
         for (int i = 0; i < files.size(); ++i) {
             const QString& file = files[i];
             QString inputPath = dir.absoluteFilePath(file);
             QFileInfo fi(file);
-            QString outName = fi.baseName() + "_rembg.png";
-            QString outputPath = QDir(outputDir).absoluteFilePath(outName);
+            const QString outputBase = fi.completeBaseName() + "_rembg";
+            QString outName = outputBase + ".png";
+            QString outputPath = outDir.absoluteFilePath(outName);
+            for (int suffix = 2;
+                 reservedOutputPaths.contains(outputPath)
+                 || QFileInfo::exists(outputPath);
+                 ++suffix) {
+                outName = outputBase + "_" + QString::number(suffix)
+                    + ".png";
+                outputPath = outDir.absoluteFilePath(outName);
+            }
+            reservedOutputPaths.insert(outputPath);
 
             QImage img(inputPath);
             if (img.isNull()) {
@@ -73,7 +99,14 @@ BatchProcessor::Result BatchProcessor::processDirectory(
             }
 
             QImage processed = remover.removeBackground(img);
-            processed.save(outputPath, "PNG");
+            if (!processed.save(outputPath, "PNG")) {
+                result.errors++;
+                result.errorMessages.append(
+                    "[ERRO] Falha ao salvar: " + outputPath);
+                std::cerr << "[ERRO] Falha ao salvar: "
+                          << outputPath.toStdString() << std::endl;
+                continue;
+            }
             result.ok++;
 
             std::cout << "[" << (i + 1) << "/"

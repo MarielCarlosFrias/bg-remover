@@ -20,7 +20,16 @@ int main(int argc, char* argv[]) {
 
     QString inputDir = argv[1];
     QString outputDir = "_rembg_output";
-    QString modelPath = "./u2netp.onnx";
+    QString modelPath =
+        QDir(QCoreApplication::applicationDirPath()).filePath("u2netp.onnx");
+    if (!QFile::exists(modelPath)) {
+#ifdef INSTALLED
+        modelPath = "/usr/share/bg-remover/u2netp.onnx";
+#endif
+    }
+    if (!QFile::exists(modelPath)) {
+        modelPath = "./u2netp.onnx";
+    }
 
     // Parse argumentos posicionais
     // Formatos aceitos:
@@ -30,7 +39,6 @@ int main(int argc, char* argv[]) {
     //   bg_remover_cli <input> <model.onnx>     (se 3º arg termina em .onnx)
     //   bg_remover_cli <input> <output> <model.onnx>
 
-    int argIndex = 2;
     if (argc >= 3) {
         QString arg2 = argv[2];
         if (arg2.endsWith(".onnx", Qt::CaseInsensitive)) {
