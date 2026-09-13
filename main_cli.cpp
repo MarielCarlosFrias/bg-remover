@@ -4,6 +4,7 @@
 #include <QFile>
 #include <iostream>
 #include "batchprocessor.h"
+#include "modelpathresolver.h"
 
 int main(int argc, char* argv[]) {
     QCoreApplication app(argc, argv);
@@ -20,16 +21,7 @@ int main(int argc, char* argv[]) {
 
     QString inputDir = argv[1];
     QString outputDir = "_rembg_output";
-    QString modelPath =
-        QDir(QCoreApplication::applicationDirPath()).filePath("u2netp.onnx");
-    if (!QFile::exists(modelPath)) {
-#ifdef INSTALLED
-        modelPath = "/usr/share/bg-remover/u2netp.onnx";
-#endif
-    }
-    if (!QFile::exists(modelPath)) {
-        modelPath = "./u2netp.onnx";
-    }
+    QString modelPath = ModelPathResolver::resolve("u2netp.onnx");
 
     // Parse argumentos posicionais
     // Formatos aceitos:
@@ -76,7 +68,9 @@ int main(int argc, char* argv[]) {
               << "\nSaida: " << outputDir.toStdString()
               << "\n---\n" << std::flush;
 
-    BatchProcessor processor(modelPath);
+    ProcessingOptions options;
+    options.modelPath = modelPath;
+    BatchProcessor processor(options);
     BatchProcessor::Result r = processor.processDirectory(
         inputDir, outputDir);
 

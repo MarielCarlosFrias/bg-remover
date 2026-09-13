@@ -29,7 +29,7 @@ int main(int argc, char* argv[]) {
         painter.end();
 
         // Testar carregamento do modelo
-        BackgroundRemover remover(modelPath.toStdString());
+        BackgroundRemover remover(modelPath);
 
         // Testar inferência
         QImage result = remover.removeBackground(img);

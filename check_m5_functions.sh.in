@@ -1,15 +1,14 @@
 #!/bin/bash
-# Verifica se applyAlphaThreshold e applyEdgeRefinement tem
-# DEFINICAO em mainwindow.cpp, nao so chamadas (chamadas sozinhas
-# nao bastam - foi exatamente isso que quebrou o build 2x antes).
+# Verifica se os filtros M5 tem DEFINICAO no componente de
+# pos-processamento, nao so chamadas.
 
-FILE="@CMAKE_SOURCE_DIR@/mainwindow.cpp"
+FILE="@CMAKE_SOURCE_DIR@/imagepostprocessor.cpp"
 
-THRESHOLD_DEFS=$(grep -c "QImage MainWindow::applyAlphaThreshold" "$FILE")
-REFINE_DEFS=$(grep -c "QImage MainWindow::applyEdgeRefinement" "$FILE")
+THRESHOLD_DEFS=$(grep -c "QImage ImagePostProcessor::applyAlphaThreshold" "$FILE")
+REFINE_DEFS=$(grep -c "QImage ImagePostProcessor::applyEdgeRefinement" "$FILE")
 
 if [ "$THRESHOLD_DEFS" -ne 1 ] || [ "$REFINE_DEFS" -ne 1 ]; then
-    echo "ERRO: definicao de applyAlphaThreshold ($THRESHOLD_DEFS) ou applyEdgeRefinement ($REFINE_DEFS) ausente ou duplicada em mainwindow.cpp"
+    echo "ERRO: definicao de applyAlphaThreshold ($THRESHOLD_DEFS) ou applyEdgeRefinement ($REFINE_DEFS) ausente ou duplicada em imagepostprocessor.cpp"
     exit 1
 fi
 echo "OK: definicoes de applyAlphaThreshold e applyEdgeRefinement presentes"

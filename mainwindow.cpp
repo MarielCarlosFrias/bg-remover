@@ -1,5 +1,7 @@
 #include "mainwindow.h"
 #include "maskeditcanvas.h"
+#include "imagepostprocessor.h"
+#include "modelpathresolver.h"
 #include <QFileDialog>
 #include <QMessageBox>
 #include <QScrollArea>
@@ -33,23 +35,6 @@ static const QRegularExpression kGeneratedOutputName(
     "_rembg(?:_[0-9]+)?$");
 static constexpr float kAlphaThreshold = 30.0f;
 
-QString MainWindow::resolveModelPath(const QString& name) {
-    QStringList candidates;
-    QString cwd = QDir::currentPath();
-    candidates << cwd + "/" + name;
-    candidates << cwd + "/../" + name;
-    candidates << cwd + "/../../" + name;
-    candidates << QDir::homePath() + "/" + name;
-    candidates << QDir::homePath() + "/projetos/bg-remover/" + name;
-#ifdef INSTALLED
-    candidates << "/usr/share/bg-remover/" + name;
-#endif
-    for (const QString& p : candidates) {
-        if (QFile::exists(p)) return p;
-    }
-    return QDir::homePath() + "/" + name;
-}
-
 QColor MainWindow::currentBackgroundColor() const {
     int idx = bgColorCombo_->currentIndex();
     if (idx == 0) return QColor();
@@ -59,41 +44,16 @@ QColor MainWindow::currentBackgroundColor() const {
     return QColor();
 }
 
-QImage MainWindow::addAlphaBackground(
-    const QImage& img, const QColor& bgColor)
+ProcessingOptions MainWindow::currentProcessingOptions() const
 {
-    if (img.isNull()) return QImage();
-    QImage result(img.size(), QImage::Format_RGBA8888);
-    if (!bgColor.isValid()) {
-        for (int y = 0; y < img.height(); ++y) {
-            for (int x = 0; x < img.width(); ++x) {
-                bool light = ((x / 8) + (y / 8)) % 2 == 0;
-                result.setPixel(x, y, qRgba(
-                    light ? 0xCC : 0xAA,
-                    light ? 0xCC : 0xAA,
-                    light ? 0xCC : 0xAA, 0xFF));
-            }
-        }
-    } else {
-        result.fill(bgColor);
-    }
-    for (int y = 0; y < img.height(); ++y) {
-        for (int x = 0; x < img.width(); ++x) {
-            QRgb src = img.pixel(x, y);
-            int alpha = qAlpha(src);
-            if (alpha == 255) {
-                result.setPixel(x, y, src);
-            } else if (alpha > 0) {
-                QRgb dst = result.pixel(x, y);
-                float a = alpha / 255.0f;
-                int r = static_cast<int>(qRed(src) * a + qRed(dst) * (1 - a));
-                int g = static_cast<int>(qGreen(src) * a + qGreen(dst) * (1 - a));
-                int b = static_cast<int>(qBlue(src) * a + qBlue(dst) * (1 - a));
-                result.setPixel(x, y, qRgba(r, g, b, 255));
-            }
-        }
-    }
-    return result;
+    ProcessingOptions options;
+    options.modelPath = modelPathEdit_->text();
+    options.cleanNoise = noiseCheckBox_->isChecked();
+    options.alphaThreshold = kAlphaThreshold;
+    options.refineEdges = refineCheckBox_->isChecked();
+    options.edgeRefinementIntensity = 0.5f;
+    options.backgroundColor = currentBackgroundColor();
+    return options;
 }
 
 MainWindow::MainWindow(QWidget* parent, const QString& modelPath)
@@ -142,10 +102,10 @@ MainWindow::MainWindow(QWidget* parent, const QString& modelPath)
 
     modelCombo_->addItem(
         "U\u00b2-Netp \u2014 r\u00e1pido (~5 MB)",
-        resolveModelPath("u2netp.onnx"));
+        ModelPathResolver::resolve("u2netp.onnx"));
     modelCombo_->addItem(
         "U\u00b2-Net  \u2014 qualidade (~176 MB)",
-        resolveModelPath("u2net.onnx"));
+        ModelPathResolver::resolve("u2net.onnx"));
     modelCombo_->addItem("Caminho customizado", "");
     modelCombo_->setCurrentIndex(0);
 
@@ -388,20 +348,20 @@ void MainWindow::removeBackground() {
     QApplication::processEvents();
 
     try {
+        ProcessingOptions options = currentProcessingOptions();
+        // A cor de fundo e apenas uma pre-visualizacao na imagem unica;
+        // manter a mascara transparente permite continuar editando-a.
+        options.backgroundColor = QColor();
         remover_ = std::make_unique<BackgroundRemover>(
-            modelPathEdit_->text().toStdString());
-        resultImage_ = remover_->removeBackground(
-            originalImage_);
-        if (noiseCheckBox_->isChecked()) {
-            resultImage_ = applyAlphaThreshold(
-                resultImage_, kAlphaThreshold);
+            options.modelPath);
+        resultImage_ = ImagePostProcessor::apply(
+            remover_->removeBackground(originalImage_), options);
+        if (options.cleanNoise) {
             logEdit_->appendPlainText(
                 "[INFO] Ruído limpo (threshold "
                 + QString::number(kAlphaThreshold) + ").");
         }
-        if (refineCheckBox_->isChecked()) {
-            resultImage_ = applyEdgeRefinement(
-                resultImage_, 0.5f);
+        if (options.refineEdges) {
             logEdit_->appendPlainText(
                 "[INFO] Bordas refinadas.");
         }
@@ -435,13 +395,10 @@ void MainWindow::saveResult() {
     QFileInfo fi(path);
     if (fi.suffix().toLower() != "png") path += ".png";
 
-    QColor bg = currentBackgroundColor();
-    QImage toSave;
-    if (!bg.isValid()) {
-        toSave = resultImage_.copy();
-    } else {
-        toSave = addAlphaBackground(resultImage_, bg);
-    }
+    ProcessingOptions saveOptions;
+    saveOptions.backgroundColor = currentBackgroundColor();
+    const QImage toSave = ImagePostProcessor::apply(
+        resultImage_, saveOptions);
 
     if (!toSave.save(path, "PNG")) {
         QMessageBox::critical(this, "Erro",
@@ -552,10 +509,11 @@ void MainWindow::processBatch() {
     batchOk_ = 0;
     batchErrors_ = 0;
     batchRunning_ = true;
+    batchOptions_ = currentProcessingOptions();
 
     try {
         remover_ = std::make_unique<BackgroundRemover>(
-            modelPathEdit_->text().toStdString());
+            batchOptions_.modelPath);
     } catch (const Ort::Exception& e) {
         QMessageBox::critical(this, "Erro de modelo",
             QString("Nao foi possivel carregar o modelo:\n")
@@ -611,18 +569,8 @@ void MainWindow::processBatchStep() {
             logEdit_->appendPlainText(
                 "[ERRO] Falha ao carregar: " + file);
         } else {
-            QImage result = remover_->removeBackground(img);
-            if (noiseCheckBox_->isChecked()) {
-                result = applyAlphaThreshold(
-                    result, kAlphaThreshold);
-            }
-            if (refineCheckBox_->isChecked()) {
-                result = applyEdgeRefinement(result, 0.5f);
-            }
-            QColor bg = currentBackgroundColor();
-            if (bg.isValid()) {
-                result = addAlphaBackground(result, bg);
-            }
+            QImage result = ImagePostProcessor::apply(
+                remover_->removeBackground(img), batchOptions_);
             if (result.save(outPath, "PNG")) {
                 ++batchOk_;
                 logEdit_->appendPlainText(
@@ -646,60 +594,6 @@ void MainWindow::processBatchStep() {
     batchIndex_++;
     progressBar_->setValue(batchIndex_);
     QTimer::singleShot(0, this, &MainWindow::processBatchStep);
-}
-
-QImage MainWindow::applyEdgeRefinement(
-    const QImage& input, float intensity)
-{
-    if (input.isNull() || intensity <= 0.0f)
-        return input.copy();
-    QImage result = input.convertToFormat(
-        QImage::Format_RGBA8888);
-    QImage blurred = result.copy();
-    int w = result.width(), h = result.height();
-    for (int y = 0; y < h; ++y) {
-        for (int x = 0; x < w; ++x) {
-            float sum_a = 0.0f; int count = 0;
-            for (int dy = -1; dy <= 1; ++dy) {
-                for (int dx = -1; dx <= 1; ++dx) {
-                    int nx = qBound(0, x + dx, w - 1);
-                    int ny = qBound(0, y + dy, h - 1);
-                    sum_a += qAlpha(result.pixel(nx, ny));
-                    ++count;
-                }
-            }
-            float blurred_a = sum_a / static_cast<float>(count);
-            QRgb px = result.pixel(x, y);
-            float orig_a = qAlpha(px);
-            float new_a = orig_a + (blurred_a - orig_a) * intensity;
-            new_a = std::clamp(new_a, 0.0f, 255.0f);
-            blurred.setPixel(x, y, qRgba(
-                qRed(px), qGreen(px), qBlue(px),
-                static_cast<int>(new_a)));
-        }
-    }
-    return blurred;
-}
-
-QImage MainWindow::applyAlphaThreshold(
-    const QImage& input, float threshold)
-{
-    if (input.isNull() || threshold <= 0.0f)
-        return input.copy();
-    QImage result = input.convertToFormat(
-        QImage::Format_RGBA8888);
-    int w = result.width(), h = result.height();
-    for (int y = 0; y < h; ++y) {
-        for (int x = 0; x < w; ++x) {
-            QRgb px = result.pixel(x, y);
-            int alpha = qAlpha(px);
-            if (alpha < static_cast<int>(threshold)) {
-                result.setPixel(x, y, qRgba(
-                    qRed(px), qGreen(px), qBlue(px), 0));
-            }
-        }
-    }
-    return result;
 }
 
 void MainWindow::setOriginal(const QImage& img) {

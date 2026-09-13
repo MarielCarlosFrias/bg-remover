@@ -1,11 +1,13 @@
 #include "batchprocessor.h"
 #include "backgroundremover.h"
+#include "imagepostprocessor.h"
 #include <QDir>
 #include <QFileInfo>
 #include <QImage>
 #include <QRegularExpression>
 #include <QSet>
 #include <iostream>
+#include <utility>
 
 static const QSet<QString> kImageExts = {
     "png", "jpg", "jpeg", "bmp", "webp", "tiff", "tif"
@@ -13,8 +15,8 @@ static const QSet<QString> kImageExts = {
 static const QRegularExpression kGeneratedOutputName(
     "_rembg(?:_[0-9]+)?$");
 
-BatchProcessor::BatchProcessor(const QString& modelPath)
-    : modelPath_(modelPath)
+BatchProcessor::BatchProcessor(ProcessingOptions options)
+    : options_(std::move(options))
 {}
 
 BatchProcessor::Result BatchProcessor::processDirectory(
@@ -68,7 +70,7 @@ BatchProcessor::Result BatchProcessor::processDirectory(
               << " imagens..." << std::endl;
 
     try {
-        BackgroundRemover remover(modelPath_.toStdString());
+        BackgroundRemover remover(options_.modelPath);
         QSet<QString> reservedOutputPaths;
 
         for (int i = 0; i < files.size(); ++i) {
@@ -98,7 +100,8 @@ BatchProcessor::Result BatchProcessor::processDirectory(
                 continue;
             }
 
-            QImage processed = remover.removeBackground(img);
+            QImage processed = ImagePostProcessor::apply(
+                remover.removeBackground(img), options_);
             if (!processed.save(outputPath, "PNG")) {
                 result.errors++;
                 result.errorMessages.append(

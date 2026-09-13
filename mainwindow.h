@@ -6,6 +6,7 @@
 #include <QStringList>
 #include <memory>
 #include "backgroundremover.h"
+#include "processingoptions.h"
 
 class QLabel;
 class QScrollArea;
@@ -40,13 +41,7 @@ private slots:
 private:
     void setOriginal(const QImage& img);
     void setResult(const QImage& img);
-    static QImage addAlphaBackground(const QImage& img,
-                                         const QColor& bgColor);
-    QImage applyEdgeRefinement(const QImage& input,
-                                   float intensity);
-    QImage applyAlphaThreshold(const QImage& input,
-                                   float threshold);
-    static QString resolveModelPath(const QString& name);
+    ProcessingOptions currentProcessingOptions() const;
     QColor currentBackgroundColor() const;
 
     QLabel* originalLabel_;
@@ -77,6 +72,7 @@ private:
     QString batchOutputDir_;
     QStringList batchFiles_;
     QStringList batchOutputPaths_;
+    ProcessingOptions batchOptions_;
     int batchIndex_;
     int batchOk_;
     int batchErrors_;

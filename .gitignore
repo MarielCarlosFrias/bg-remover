@@ -1,16 +1,36 @@
-# Build
-build/
+# Artefatos de build e empacotamento
+/build/
+/build-*/
+/cmake-build-*/
+/.qt/
 *.o
+*.obj
 *.so
+*.dll
+*.dylib
+*.a
+*.exe
+*.deb
+*.zip
 
-# Modelo (arquivo grande, baixado à parte)
+# Modelos (arquivos grandes, baixados a parte)
 *.onnx
 
-# ONNX Runtime extraído (dependência externa, não versionar)
+# ONNX Runtime extraido (dependencia externa)
 onnxruntime-linux-x64-*/
+onnxruntime-win-x64-*/
 
-# Arquivos de teste locais
-teste.png
-teste.jpg
-resultado*.png
-_rembg/
+# Saidas e imagens locais
+/_rembg/
+/_rembg_output/
+/_rembg_cli_test/
+/imagens/
+/imagens_teste/
+/teste.png
+/teste.jpg
+/resultado*.png
+
+# Atalhos e rascunhos locais
+/bg_remover_cli
+*.bak
+/apptheme.h

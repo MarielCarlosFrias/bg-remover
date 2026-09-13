@@ -15,7 +15,7 @@ Ferramentas de remoção de fundo consolidadas (remove.bg, Photoroom, Canva) pro
 - **Pincel de ajuste manual**: corrige a máscara pintando diretamente sobre o resultado, em dois modos — "Restaurar" (traz de volta pixels que o modelo removeu por engano) e "Apagar" (remove resíduos que o modelo deixou passar) — com 1 nível de desfazer
 - **Processamento em lote**: seleciona uma pasta inteira de imagens e processa todas de uma vez, com barra de progresso e log de erros por arquivo
 - **CLI standalone** (`bg_remover_cli`): processa uma pasta inteira via linha de comando, sem abrir a interface gráfica — útil para scripts e automações
-- **Empacotamento `.deb`**: instalável como aplicativo Linux nativo, com ícone e entrada no menu de aplicativos
+- **Pacotes portáteis**: `.deb` para Debian/Ubuntu e `.zip` para Windows x64, ambos com runtime e modelo leve incluídos
 
 ## Stack técnico
 
@@ -26,7 +26,7 @@ Ferramentas de remoção de fundo consolidadas (remove.bg, Photoroom, Canva) pro
 | Modelo de segmentação | U²-Net / U²-Netp |
 | Build system | CMake + Ninja/Make |
 | Empacotamento | CPack (gerador DEB) |
-| Testes | CTest (teste de inferência automatizado) |
+| Testes | CTest (pós-processamento e inferência automatizada) |
 | Linguagem | C++17 |
 
 Ambiente de desenvolvimento: Xubuntu, CPU-only (sem GPU dedicada) — o projeto foi desenhado desde o início para rodar bem sem aceleração de hardware.
@@ -44,20 +44,24 @@ Ambiente de desenvolvimento: Xubuntu, CPU-only (sem GPU dedicada) — o projeto 
 Toda essa lógica central vive encapsulada na classe `BackgroundRemover`, reutilizada de forma idêntica pela GUI, pelo processamento em lote e pelo CLI — garantindo que o resultado seja sempre o mesmo, não importa por qual caminho a imagem é processada.
 
 ## Estrutura do projeto
-bg-remover/
-├── backgroundremover.h/.cpp # Núcleo: pipeline de inferência (pré/pós-processamento, ONNX)
-├── mainwindow.h/.cpp # GUI principal (Qt6)
-├── maskeditcanvas.h/.cpp # Widget do pincel de ajuste manual
-├── batchprocessor.h/.cpp # Lógica de processamento em lote (usado pelo CLI)
-├── main.cpp # Entry point da GUI
-├── main_cli.cpp # Entry point do CLI
-├── test_inference.cpp # Teste automatizado (CTest)
-├── bg-remover.desktop # Arquivo de menu de aplicativos (Linux)
-├── bg-remover.svg # Ícone do aplicativo
-├── CMakeLists.txt # Build + packaging (.deb via CPack)
-└── onnxruntime-linux-x64-1.19.0/ # Biblioteca ONNX Runtime extraída (não versionada)
 
-**Não versionados no Git** (veja `.gitignore`): `build/`, arquivos `*.onnx` (modelos, baixados à parte), a pasta extraída do ONNX Runtime, e imagens de teste locais.
+```text
+bg-remover/
+├── .github/workflows/              # CI e publicação de releases no GitHub Actions
+├── backgroundremover.h/.cpp       # Inferência ONNX e máscara alpha
+├── imagepostprocessor.h/.cpp      # Threshold, bordas e composição de fundo
+├── processingoptions.h             # Opções compartilhadas entre GUI e CLI
+├── batchprocessor.h/.cpp           # Processamento de diretórios e salvamento seguro
+├── mainwindow.h/.cpp               # Interface gráfica Qt6
+├── maskeditcanvas.h/.cpp           # Edição manual da máscara
+├── main.cpp / main_cli.cpp          # Pontos de entrada GUI e CLI
+├── test_inference.cpp               # Teste de inferência com modelo real
+├── test_postprocessing.cpp          # Teste unitário dos filtros
+├── bg-remover.desktop / .svg        # Integração e ícone Linux
+└── CMakeLists.txt                   # Build, testes e pacote .deb
+```
+
+Arquivos grandes e locais — modelos `*.onnx`, ONNX Runtime extraído, diretórios `build*` e resultados gerados — ficam fora do Git. O repositório contém somente fonte, testes, metadados de build e automação. Os pacotes de release baixam e incluem suas dependências verificadas durante a criação; o usuário final não precisa baixar ONNX Runtime.
 
 ## Como compilar
 
@@ -66,11 +70,7 @@ Pré-requisitos:
 sudo apt install qt6-base-dev qt6-base-private-dev build-essential cmake
 ```
 
-Baixe o ONNX Runtime (C++ API) e extraia na raiz do projeto:
-```bash
-wget https://github.com/microsoft/onnxruntime/releases/download/v1.19.0/onnxruntime-linux-x64-1.19.0.tgz
-tar -xzf onnxruntime-linux-x64-1.19.0.tgz
-```
+O CMake pode baixar o ONNX Runtime 1.19.0 automaticamente, via HTTPS e com checksum SHA-256 fixado. O arquivo é extraído dentro de `build/_deps`, sem modificar a árvore de código:
 
 Baixe os modelos (também na raiz do projeto):
 ```bash
@@ -79,31 +79,66 @@ wget https://github.com/danielgatis/rembg/releases/download/v0.0.0/u2netp.onnx
 # https://github.com/danielgatis/rembg/releases/download/v0.0.0/u2net.onnx
 ```
 
-Compile:
 ```bash
-mkdir build && cd build
-cmake ..
-cmake --build .
+cmake -S . -B build -DBG_REMOVER_FETCH_ONNX_RUNTIME=ON
+cmake --build build --parallel
+```
+
+Se preferir usar uma cópia já extraída, informe o caminho explicitamente:
+
+```bash
+cmake -S . -B build \
+  -DBG_REMOVER_ONNX_RUNTIME_DIR=/caminho/para/onnxruntime-linux-x64-1.19.0
 ```
 
 ## Como usar
 
 **GUI:**
 ```bash
-./bg_remover_gui
+./build/bg_remover_gui
 ```
 
 **CLI (processamento em lote sem interface gráfica):**
 ```bash
-./bg_remover_cli <pasta_entrada> [pasta_saida] [modelo.onnx]
+./build/bg_remover_cli <pasta_entrada> [pasta_saida] [modelo.onnx]
 ```
+
+Se nenhum modelo for informado, GUI e CLI procuram `u2netp.onnx` ao lado do executável, no diretório de instalação e depois no diretório atual. Isso permite que o pacote Linux e o ZIP Windows funcionem sem configuração adicional.
+
+O lote evita sobrescrever resultados: em colisões, cria sufixos como `_rembg_2.png`; quando entrada e saída são a mesma pasta, ignora saídas já geradas.
+
+## Testes
+
+```bash
+ctest --test-dir build --output-on-failure
+```
+
+O teste de pós-processamento sempre roda. O teste de inferência é marcado como desativado quando `u2netp.onnx` não está disponível. A CI compila e testa Linux e Windows x64; no Windows ela também verifica que o ZIP contém Qt, o plugin `qwindows.dll` e as DLLs do ONNX Runtime.
 
 **Instalar como pacote Debian:**
 ```bash
-cd build
+cmake -S . -B build-release -DINSTALLED=ON \
+  -DBG_REMOVER_FETCH_ONNX_RUNTIME=ON \
+  -DBG_REMOVER_BUNDLE_MODELS=ON
+cmake --build build-release --parallel
+cd build-release
 cpack -G DEB
 sudo dpkg -i bg-remover_1.0.0_amd64.deb
 ```
+
+`BG_REMOVER_BUNDLE_MODELS=ON` exige `u2netp.onnx` na raiz e falha se ele estiver ausente, impedindo a criação acidental de um pacote que não funciona. O modelo maior `u2net.onnx` é incluído apenas se estiver presente.
+
+## Windows
+
+O release para Windows é um ZIP portátil x64: extraia-o e execute `bg_remover_gui.exe`. Ele inclui as DLLs do Qt, o plugin de plataforma, ONNX Runtime, o modelo U²-Netp e o runtime C++ necessário. Para compilar no Windows, use Visual Studio 2022, CMake e Qt 6 para MSVC:
+
+```powershell
+cmake -S . -B build -G "Visual Studio 17 2022" -A x64 `
+  -DINSTALLED=ON -DBG_REMOVER_FETCH_ONNX_RUNTIME=ON
+cmake --build build --config Release --parallel
+```
+
+Ao criar uma tag `v*`, o workflow de release gera o `.deb` e o ZIP Windows, baixa o modelo leve com checksum verificado e publica os dois no GitHub Releases.
 
 ## Histórico de desenvolvimento
 
@@ -123,9 +158,13 @@ O projeto foi construído de forma incremental, com um fluxo de trabalho onde um
 
 - A qualidade da segmentação depende do modelo escolhido: U²-Netp é rápido mas pode deixar resíduos em bordas complexas (cabelo, transparências finas); U²-Net é mais preciso mas ~35x mais pesado
 - O pincel de ajuste manual oferece apenas 1 nível de desfazer
-- Testado e empacotado apenas para Linux (Debian/Ubuntu via `.deb`); build para Windows ainda não implementado
+- O pacote Windows x64 é validado automaticamente na CI; antes da primeira release pública, recomenda-se um teste manual em uma máquina Windows limpa
 - CPU-only: sem suporte a aceleração por GPU (não era um requisito do projeto, dado o hardware alvo)
 
 ## Créditos
 
 Modelos U²-Net / U²-Netp: [Qin et al., 2020](https://github.com/xuebinqin/U-2-Net). Arquivos ONNX pré-convertidos via [rembg](https://github.com/danielgatis/rembg).
+
+## Licença
+
+Ainda não há uma licença definida para o código. Escolha e adicione uma licença antes de publicar o repositório para deixar explícitas as permissões de uso e contribuição.

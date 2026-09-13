@@ -1,0 +1,58 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  linux-deb:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y cmake ninja-build qt6-base-dev
+      - name: Download bundled model
+        run: |
+          curl -fsSL -o u2netp.onnx https://github.com/danielgatis/rembg/releases/download/v0.0.0/u2netp.onnx
+          echo '309c8469258dda742793dce0ebea8e6dd393174f89934733ecc8b14c76f4ddd8  u2netp.onnx' | sha256sum --check
+      - run: cmake -S . -B build -G Ninja -DINSTALLED=ON -DBG_REMOVER_FETCH_ONNX_RUNTIME=ON -DBG_REMOVER_BUNDLE_MODELS=ON
+      - run: cmake --build build --parallel && ctest --test-dir build --output-on-failure
+      - run: cpack --config build/CPackConfig.cmake -G DEB -B dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-deb
+          path: dist/*.deb
+
+  windows-zip:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.7.3'
+          arch: win64_msvc2022_64
+      - name: Download bundled model
+        shell: pwsh
+        run: |
+          Invoke-WebRequest https://github.com/danielgatis/rembg/releases/download/v0.0.0/u2netp.onnx -OutFile u2netp.onnx
+          if ((Get-FileHash u2netp.onnx -Algorithm SHA256).Hash.ToLower() -ne '309c8469258dda742793dce0ebea8e6dd393174f89934733ecc8b14c76f4ddd8') { throw 'Checksum do modelo invalido' }
+      - run: cmake -S . -B build -G "Visual Studio 17 2022" -A x64 -DINSTALLED=ON -DBG_REMOVER_FETCH_ONNX_RUNTIME=ON -DBG_REMOVER_BUNDLE_MODELS=ON
+      - run: cmake --build build --config Release --parallel
+      - run: cpack --config build/CPackConfig.cmake -C Release -G ZIP -B dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-zip
+          path: dist/*.zip
+
+  publish:
+    needs: [linux-deb, windows-zip]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/**/*

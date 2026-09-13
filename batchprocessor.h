@@ -3,6 +3,7 @@
 
 #include <QString>
 #include <QStringList>
+#include "processingoptions.h"
 
 class BatchProcessor {
 public:
@@ -13,14 +14,14 @@ public:
         QStringList errorMessages;
     };
 
-    explicit BatchProcessor(const QString& modelPath);
+    explicit BatchProcessor(ProcessingOptions options);
 
     Result processDirectory(
         const QString& inputDir,
         const QString& outputDir);
 
 private:
-    QString modelPath_;
+    ProcessingOptions options_;
 };
 
 #endif

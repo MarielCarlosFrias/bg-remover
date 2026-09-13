@@ -9,7 +9,7 @@
 static constexpr float MEAN[3] = {0.485f, 0.456f, 0.406f};
 static constexpr float STD[3]  = {0.229f, 0.224f, 0.225f};
 
-BackgroundRemover::BackgroundRemover(const std::string& model_path)
+BackgroundRemover::BackgroundRemover(const QString& modelPath)
     : env_(ORT_LOGGING_LEVEL_WARNING, "u2netp"),
       session_(nullptr)
 {
@@ -19,10 +19,11 @@ BackgroundRemover::BackgroundRemover(const std::string& model_path)
         GraphOptimizationLevel::ORT_ENABLE_ALL);
 
 #ifdef _WIN32
-    std::wstring wpath(model_path.begin(), model_path.end());
+    const std::wstring wpath = modelPath.toStdWString();
     session_ = Ort::Session(env_, wpath.c_str(), sess_opts);
 #else
-    session_ = Ort::Session(env_, model_path.c_str(), sess_opts);
+    const QByteArray utf8Path = modelPath.toUtf8();
+    session_ = Ort::Session(env_, utf8Path.constData(), sess_opts);
 #endif
 
     Ort::AllocatorWithDefaultOptions allocator;
@@ -32,7 +33,8 @@ BackgroundRemover::BackgroundRemover(const std::string& model_path)
     input_name_  = std::string(in_ptr.get());
     output_name_ = std::string(out_ptr.get());
 
-    std::cout << "[BackgroundRemover] Modelo carregado: " << model_path
+    std::cout << "[BackgroundRemover] Modelo carregado: "
+              << modelPath.toStdString()
               << "\n  Input: " << input_name_
               << "\n  Output: " << output_name_ << std::endl;
 }

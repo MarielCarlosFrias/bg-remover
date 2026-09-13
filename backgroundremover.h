@@ -2,6 +2,7 @@
 #define BACKGROUNDREMOVER_H
 
 #include <QImage>
+#include <QString>
 #include <onnxruntime_cxx_api.h>
 #include <string>
 #include <vector>
@@ -9,7 +10,7 @@
 
 class BackgroundRemover {
 public:
-    explicit BackgroundRemover(const std::string& model_path);
+    explicit BackgroundRemover(const QString& modelPath);
 
     QImage removeBackground(const QImage& input);
 

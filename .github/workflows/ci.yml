@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y cmake ninja-build qt6-base-dev
+
+      - name: Configure
+        run: cmake -S . -B build -G Ninja -DBG_REMOVER_FETCH_ONNX_RUNTIME=ON
+
+      - name: Build
+        run: cmake --build build --parallel
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.7.3'
+          arch: win64_msvc2022_64
+
+      - name: Configure
+        run: cmake -S . -B build -G "Visual Studio 17 2022" -A x64 -DINSTALLED=ON -DBG_REMOVER_FETCH_ONNX_RUNTIME=ON
+
+      - name: Build and test
+        run: |
+          cmake --build build --config Release --parallel
+          ctest --test-dir build -C Release --output-on-failure
+
+      - name: Package portable ZIP
+        run: cpack --config build/CPackConfig.cmake -C Release -G ZIP -B dist
+
+      - name: Verify Qt deployment
+        shell: pwsh
+        run: |
+          Expand-Archive dist/bg-remover_1.0.0_win64.zip package
+          if (-not (Test-Path package/platforms/qwindows.dll)) { throw 'qwindows.dll ausente do ZIP' }
+          if (-not (Test-Path package/onnxruntime.dll)) { throw 'onnxruntime.dll ausente do ZIP' }
+          if (-not (Test-Path package/onnxruntime_providers_shared.dll)) { throw 'provider DLL ausente do ZIP' }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bg-remover-windows-portable
+          path: dist/bg-remover_1.0.0_win64.zip
