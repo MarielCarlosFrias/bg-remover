@@ -49,6 +49,14 @@ void MaskEditCanvas::setBrushRadius(int radius)
     brushRadius_ = qBound(1, radius, 200);
 }
 
+void MaskEditCanvas::setDisplaySize(const QSize& size)
+{
+    if (size.isEmpty()) return;
+    setMinimumSize(size);
+    setMaximumSize(size);
+    resize(size);
+}
+
 QImage MaskEditCanvas::getEditedImage() const
 {
     return editBuffer_.isNull()
@@ -210,8 +218,10 @@ void MaskEditCanvas::paintEvent(QPaintEvent*)
     if (cursorPos_.x() >= 0 && cursorPos_.y() >= 0) {
         painter.setPen(QPen(Qt::red, 1, Qt::SolidLine));
         painter.setBrush(Qt::NoBrush);
+        const int cursorRadius = qMax(1, static_cast<int>(
+            brushRadius_ * scaleFactor()));
         painter.drawEllipse(cursorPos_,
-                            brushRadius_, brushRadius_);
+                            cursorRadius, cursorRadius);
     }
 }
 

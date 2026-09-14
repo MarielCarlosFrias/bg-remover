@@ -17,6 +17,7 @@ public:
                   const QColor& bgColor = QColor());
     void setBackgroundColor(const QColor& bgColor);
     void setBrushRadius(int radius);
+    void setDisplaySize(const QSize& size);
     QImage getEditedImage() const;
     void undo();
     void clearEdits();

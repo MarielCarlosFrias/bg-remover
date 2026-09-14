@@ -15,6 +15,9 @@
 #include <QSpinBox>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
+#include <QFormLayout>
+#include <QFrame>
+#include <QSplitter>
 #include <QApplication>
 #include <QPixmap>
 #include <QSizePolicy>
@@ -25,6 +28,7 @@
 #include <QRegularExpression>
 #include <QSet>
 #include <QColorDialog>
+#include <QResizeEvent>
 #include <algorithm>
 #include <iostream>
 
@@ -59,6 +63,8 @@ ProcessingOptions MainWindow::currentProcessingOptions() const
 MainWindow::MainWindow(QWidget* parent, const QString& modelPath)
     : QMainWindow(parent),
       originalLabel_(new QLabel("Nenhuma imagem")),
+      imageNameLabel_(new QLabel("Nenhuma imagem selecionada")),
+      zoomLabel_(new QLabel("100%")),
       originalScroll_(new QScrollArea),
       resultScroll_(new QScrollArea),
       modelCombo_(new QComboBox),
@@ -85,19 +91,20 @@ MainWindow::MainWindow(QWidget* parent, const QString& modelPath)
       batchOk_(0),
       batchErrors_(0),
       batchRunning_(false),
-      customBgColor_(QColor())
+      customBgColor_(QColor()),
+      previewZoomPercent_(100)
 {
     originalLabel_->setAlignment(Qt::AlignCenter);
 
     originalScroll_->setWidget(originalLabel_);
-    originalScroll_->setWidgetResizable(true);
+    originalScroll_->setWidgetResizable(false);
     originalScroll_->setAlignment(Qt::AlignCenter);
 
     maskEditCanvas_->setMinimumSize(320, 240);
     maskEditCanvas_->setSizePolicy(
         QSizePolicy::Expanding, QSizePolicy::Expanding);
     resultScroll_->setWidget(maskEditCanvas_);
-    resultScroll_->setWidgetResizable(true);
+    resultScroll_->setWidgetResizable(false);
     resultScroll_->setAlignment(Qt::AlignCenter);
 
     modelCombo_->addItem(
@@ -116,7 +123,7 @@ MainWindow::MainWindow(QWidget* parent, const QString& modelPath)
         modelPathEdit_->setText(
             modelCombo_->itemData(0).toString());
     }
-    modelPathEdit_->setMinimumWidth(280);
+    modelPathEdit_->setMinimumWidth(0);
 
     bgColorCombo_->addItem("Transparente", QVariant());
     bgColorCombo_->addItem(
@@ -151,58 +158,175 @@ MainWindow::MainWindow(QWidget* parent, const QString& modelPath)
     logEdit_->setVisible(false);
     logEdit_->setPlaceholderText("Log do processamento...");
 
-    auto* topLayout = new QHBoxLayout();
-    topLayout->addWidget(new QLabel("Modelo:"));
-    topLayout->addWidget(modelCombo_);
-    topLayout->addWidget(modelPathEdit_);
-    topLayout->addWidget(btnLoadModel_);
+    auto* header = new QFrame;
+    header->setObjectName("titleBar");
+    auto* headerLayout = new QHBoxLayout(header);
+    headerLayout->setContentsMargins(18, 0, 18, 0);
+    headerLayout->setSpacing(10);
+    auto* brandMark = new QLabel("B");
+    brandMark->setObjectName("brandMark");
+    auto* title = new QLabel("BG Remover");
+    title->setObjectName("appTitle");
+    auto* subtitle = new QLabel("Editor de fundo local");
+    subtitle->setObjectName("appSubtitle");
+    headerLayout->addWidget(brandMark);
+    headerLayout->addWidget(title);
+    headerLayout->addWidget(subtitle);
+    headerLayout->addStretch();
+    btnOpen_->setObjectName("openButton");
+    headerLayout->addWidget(btnOpen_);
 
-    auto* previewLayout = new QHBoxLayout();
-    previewLayout->addWidget(originalScroll_);
-    previewLayout->addWidget(resultScroll_);
+    auto* originalPanel = new QFrame;
+    originalPanel->setObjectName("previewPanel");
+    auto* originalLayout = new QVBoxLayout(originalPanel);
+    originalLayout->setContentsMargins(0, 0, 0, 0);
+    auto* originalTitle = new QLabel("Original");
+    originalTitle->setObjectName("previewTitle");
+    originalLayout->addWidget(originalTitle);
+    originalLayout->addWidget(originalScroll_);
 
-    auto* bgLayout = new QHBoxLayout();
-    bgLayout->addWidget(new QLabel("Fundo:"));
-    bgLayout->addWidget(bgColorCombo_);
-    bgLayout->addStretch();
+    auto* resultPanel = new QFrame;
+    resultPanel->setObjectName("previewPanel");
+    auto* resultLayout = new QVBoxLayout(resultPanel);
+    resultLayout->setContentsMargins(0, 0, 0, 0);
+    auto* resultTitle = new QLabel("Resultado");
+    resultTitle->setObjectName("previewTitle");
+    resultLayout->addWidget(resultTitle);
+    resultLayout->addWidget(resultScroll_);
 
-    auto* brushLayout = new QHBoxLayout();
-    brushLayout->addWidget(new QLabel("Pincel:"));
-    brushLayout->addWidget(brushModeCombo_);
-    brushLayout->addWidget(new QLabel("Tamanho:"));
-    brushLayout->addWidget(brushRadiusSpin_);
-    brushLayout->addWidget(btnUndo_);
-    brushLayout->addStretch();
+    auto* previewSplitter = new QSplitter(Qt::Horizontal);
+    previewSplitter->setChildrenCollapsible(false);
+    previewSplitter->setHandleWidth(12);
+    previewSplitter->addWidget(originalPanel);
+    previewSplitter->addWidget(resultPanel);
+    previewSplitter->setStretchFactor(0, 1);
+    previewSplitter->setStretchFactor(1, 1);
 
-    auto* btnLayout = new QHBoxLayout();
-    btnLayout->addWidget(btnOpen_);
-    btnLayout->addWidget(btnRemove_);
-    btnLayout->addWidget(btnSave_);
-    btnLayout->addStretch();
-    btnLayout->addWidget(refineCheckBox_);
-    btnLayout->addWidget(noiseCheckBox_);
+    auto* workspace = new QFrame;
+    workspace->setObjectName("workspace");
+    auto* workspaceLayout = new QVBoxLayout(workspace);
+    workspaceLayout->setContentsMargins(0, 0, 0, 0);
+    auto* workspaceToolbar = new QHBoxLayout;
+    workspaceToolbar->setContentsMargins(0, 0, 0, 0);
+    imageNameLabel_->setObjectName("imageName");
+    workspaceToolbar->addWidget(imageNameLabel_);
+    workspaceToolbar->addStretch();
+    auto* compareLabel = new QLabel("Comparar");
+    compareLabel->setObjectName("viewModeActive");
+    workspaceToolbar->addWidget(compareLabel);
+    auto* editHint = new QLabel("Edite a máscara no resultado");
+    editHint->setObjectName("workspaceHint");
+    workspaceToolbar->addWidget(editHint);
+    auto* zoomOutButton = new QPushButton("−");
+    zoomOutButton->setObjectName("zoomButton");
+    zoomOutButton->setToolTip("Diminuir zoom");
+    auto* zoomInButton = new QPushButton("+");
+    zoomInButton->setObjectName("zoomButton");
+    zoomInButton->setToolTip("Aumentar zoom");
+    auto* fitButton = new QPushButton("Ajustar");
+    fitButton->setObjectName("fitButton");
+    fitButton->setToolTip("Ajustar imagem à área de trabalho");
+    zoomLabel_->setObjectName("zoomLabel");
+    workspaceToolbar->addSpacing(4);
+    workspaceToolbar->addWidget(zoomOutButton);
+    workspaceToolbar->addWidget(zoomLabel_);
+    workspaceToolbar->addWidget(zoomInButton);
+    workspaceToolbar->addWidget(fitButton);
+    workspaceLayout->addLayout(workspaceToolbar);
+    workspaceLayout->addWidget(previewSplitter, 1);
 
-    auto* folderLayout = new QHBoxLayout();
-    folderLayout->addWidget(new QLabel("Pasta:"));
-    folderLayout->addWidget(folderEdit_);
-    folderLayout->addWidget(btnSelectFolder_);
+    auto* inspector = new QFrame;
+    inspector->setObjectName("inspector");
+    inspector->setFixedWidth(260);
+    auto* inspectorLayout = new QVBoxLayout(inspector);
+    inspectorLayout->setContentsMargins(14, 14, 14, 14);
+    inspectorLayout->setSpacing(9);
+    auto sectionTitle = [](const QString& text) {
+        auto* label = new QLabel(text);
+        label->setObjectName("inspectorTitle");
+        return label;
+    };
+    inspectorLayout->addWidget(sectionTitle("Remover fundo"));
+    auto* modelForm = new QFormLayout;
+    modelForm->setLabelAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+    modelForm->setRowWrapPolicy(QFormLayout::WrapAllRows);
+    modelForm->addRow("Modelo", modelCombo_);
+    auto* modelPathLayout = new QHBoxLayout;
+    modelPathLayout->addWidget(modelPathEdit_);
+    modelPathLayout->addWidget(btnLoadModel_);
+    modelForm->addRow("Arquivo", modelPathLayout);
+    inspectorLayout->addLayout(modelForm);
+    btnRemove_->setObjectName("primaryAction");
+    btnRemove_->setMinimumHeight(38);
+    inspectorLayout->addWidget(btnRemove_);
 
-    auto* batchLayout = new QHBoxLayout();
-    batchLayout->addWidget(new QLabel("Saida:"));
-    batchLayout->addWidget(outputDirEdit_);
+    auto* separatorOne = new QFrame;
+    separatorOne->setObjectName("inspectorSeparator");
+    separatorOne->setFrameShape(QFrame::HLine);
+    inspectorLayout->addWidget(separatorOne);
+    inspectorLayout->addWidget(sectionTitle("Ajustes de saída"));
+    auto* outputForm = new QFormLayout;
+    outputForm->setRowWrapPolicy(QFormLayout::WrapAllRows);
+    outputForm->addRow("Fundo ao salvar", bgColorCombo_);
+    inspectorLayout->addLayout(outputForm);
+    inspectorLayout->addWidget(refineCheckBox_);
+    inspectorLayout->addWidget(noiseCheckBox_);
+
+    auto* separatorTwo = new QFrame;
+    separatorTwo->setObjectName("inspectorSeparator");
+    separatorTwo->setFrameShape(QFrame::HLine);
+    inspectorLayout->addWidget(separatorTwo);
+    inspectorLayout->addWidget(sectionTitle("Correção manual"));
+    auto* brushForm = new QFormLayout;
+    brushForm->setRowWrapPolicy(QFormLayout::WrapAllRows);
+    brushForm->addRow("Pincel", brushModeCombo_);
+    brushForm->addRow("Tamanho", brushRadiusSpin_);
+    inspectorLayout->addLayout(brushForm);
+    inspectorLayout->addWidget(btnUndo_);
+    auto* brushHint = new QLabel("Após remover o fundo, use o pincel no painel Resultado para restaurar ou apagar detalhes.");
+    brushHint->setObjectName("inspectorHint");
+    brushHint->setWordWrap(true);
+    inspectorLayout->addWidget(brushHint);
+    inspectorLayout->addStretch();
+
+    auto* contentSplitter = new QSplitter(Qt::Horizontal);
+    contentSplitter->setChildrenCollapsible(false);
+    contentSplitter->addWidget(workspace);
+    contentSplitter->addWidget(inspector);
+    contentSplitter->setStretchFactor(0, 1);
+
+    auto* batchBar = new QFrame;
+    batchBar->setObjectName("batchBar");
+    auto* batchLayout = new QHBoxLayout(batchBar);
+    batchLayout->setContentsMargins(16, 12, 16, 12);
+    batchLayout->setSpacing(10);
+    auto* batchTitle = new QLabel("Processamento em lote");
+    batchTitle->setObjectName("batchTitle");
+    batchLayout->addWidget(batchTitle);
+    batchLayout->addSpacing(8);
+    folderEdit_->setPlaceholderText("Nenhuma pasta selecionada");
+    folderEdit_->setMinimumWidth(190);
+    batchLayout->addWidget(folderEdit_, 1);
+    btnSelectFolder_->setText("Escolher pasta");
+    batchLayout->addWidget(btnSelectFolder_);
+    outputDirEdit_->setMinimumWidth(120);
+    outputDirEdit_->setMaximumWidth(180);
+    batchLayout->addWidget(outputDirEdit_, 1);
+    btnSelectOutput_->setText("Salvar em…");
     batchLayout->addWidget(btnSelectOutput_);
     batchLayout->addWidget(btnProcessBatch_);
+    btnSave_->setObjectName("saveButton");
+    batchLayout->addWidget(btnSave_);
 
     auto* mainLayout = new QVBoxLayout();
-    mainLayout->addLayout(topLayout);
-    mainLayout->addLayout(previewLayout);
-    mainLayout->addLayout(bgLayout);
-    mainLayout->addLayout(brushLayout);
-    mainLayout->addLayout(btnLayout);
-    mainLayout->addLayout(folderLayout);
-    mainLayout->addLayout(batchLayout);
+    mainLayout->setContentsMargins(16, 0, 16, 16);
+    mainLayout->setSpacing(16);
+    mainLayout->addWidget(header);
+    mainLayout->addWidget(contentSplitter, 1);
+    mainLayout->addWidget(batchBar);
     mainLayout->addWidget(progressBar_);
     auto* btnToggleLog = new QPushButton("Mostrar log \u25be");
+    btnToggleLog->setObjectName("logToggle");
     mainLayout->addWidget(btnToggleLog);
     mainLayout->addWidget(logEdit_);
 
@@ -213,22 +337,64 @@ MainWindow::MainWindow(QWidget* parent, const QString& modelPath)
             ? QString::fromUtf8("Esconder log \u25b4")
             : QString::fromUtf8("Mostrar log \u25be"));
     });
+    connect(zoomOutButton, &QPushButton::clicked, this, [this]() {
+        setPreviewZoom(previewZoomPercent_ - 25);
+    });
+    connect(zoomInButton, &QPushButton::clicked, this, [this]() {
+        setPreviewZoom(previewZoomPercent_ + 25);
+    });
+    connect(fitButton, &QPushButton::clicked, this, [this]() {
+        setPreviewZoom(100);
+    });
 
     auto* central = new QWidget(this);
     central->setLayout(mainLayout);
+    central->setObjectName("studioRoot");
     setCentralWidget(central);
 
-    originalScroll_->setMaximumSize(640, 640);
-    resultScroll_->setMaximumSize(640, 640);
+    central->setStyleSheet(
+        "#studioRoot { background: #171a1d; }"
+        "QFrame#titleBar { min-height: 50px; max-height: 50px;"
+        " background: #20252a; border-bottom: 1px solid #343a40; }"
+        "QFrame#inspector { background: #20252a; border: 1px solid #384047; border-radius: 10px; }"
+        "QFrame#batchBar { background: #1b2024; border: 1px solid #343a40; border-radius: 10px; }"
+        "QFrame#previewPanel { background: #252a2e; border: 1px solid #384047; border-radius: 10px; }"
+        "QLabel#brandMark { min-width: 24px; max-width: 24px; min-height: 24px; max-height: 24px;"
+        " background: #36c66a; color: #102217; border-radius: 7px; font-weight: 800; qproperty-alignment: AlignCenter; }"
+        "QLabel#appTitle { color: #edf2f7; font-size: 15px; font-weight: 600; }"
+        "QLabel#appSubtitle, QLabel#imageName, QLabel#workspaceHint, QLabel#inspectorHint { color: #9ba6af; }"
+        "QLabel#appSubtitle { font-size: 12px; }"
+        "QLabel#imageName { font-weight: 600; }"
+        "QLabel#workspaceHint { font-size: 12px; }"
+        "QLabel#viewModeActive { background: #384149; border: 1px solid #6b7781; border-radius: 7px;"
+        " padding: 6px 10px; color: #edf2f7; font-size: 12px; font-weight: 600; }"
+        "QLabel#zoomLabel { min-width: 42px; color: #a9b3ba; font-size: 12px; qproperty-alignment: AlignCenter; }"
+        "QLabel#previewTitle { padding: 11px 13px; font-weight: 600; color: #e8edf0;"
+        " background: #20252a; border-bottom: 1px solid #384047; }"
+        "QLabel#inspectorTitle { font-size: 14px; font-weight: 600; color: #edf2f4; }"
+        "QLabel#inspectorHint { font-size: 12px; line-height: 1.35; }"
+        "QLabel#batchTitle { font-weight: 700; color: #e8eef1; }"
+        "QScrollArea { background: #252a2e; border: 0; }"
+        "QLineEdit, QComboBox, QSpinBox { background: #2a3137; border: 1px solid #465058;"
+        " border-radius: 7px; padding: 7px 9px; color: #e8edf0; }"
+        "QPushButton { background: #2b3238; border: 1px solid #465058; border-radius: 7px;"
+        " padding: 8px 11px; color: #e8edf0; }"
+        "QPushButton:hover { background: #384149; }"
+        "QPushButton:disabled { background: #252b30; color: #78848c; border-color: #384148; }"
+        "QPushButton#primaryAction { background: #36a85c; border-color: #36a85c;"
+        " color: #102217; font-weight: 700; }"
+        "QPushButton#primaryAction:hover { background: #42cf74; }"
+        "QPushButton#saveButton { background: #36c66a; border-color: #36c66a; color: #102217; font-weight: 700; }"
+        "QPushButton#saveButton:hover { background: #42cf74; }"
+        "QPushButton#logToggle { background: transparent; border: 0; color: #a5b1b9; text-align: left; }"
+        "QPushButton#zoomButton { min-width: 30px; max-width: 30px; padding: 6px; font-size: 16px; }"
+        "QPushButton#fitButton { padding: 6px 9px; font-size: 12px; }"
+        "QFrame#inspectorSeparator { color: #384047; }"
+        "QSplitter::handle { background: #171a1d; }");
 
-    btnRemove_->setStyleSheet(
-        "QPushButton { background-color: #2e7d32; color: white; "
-        "font-weight: bold; padding: 4px 12px; } "
-        "QPushButton:hover { background-color: #388e3c; } "
-        "QPushButton:disabled { background-color: #555; color: #999; }");
-
-    setWindowTitle("BG Remover \u2014 U\u00b2-Netp");
-    resize(1200, 800);
+    setWindowTitle("BG Remover");
+    setMinimumSize(980, 680);
+    resize(1320, 860);
 
     connect(btnOpen_,          &QPushButton::clicked,
             this,              &MainWindow::openImage);
@@ -278,6 +444,42 @@ void MainWindow::editingDone()
     btnUndo_->setEnabled(maskEditCanvas_->hasEdits());
 }
 
+void MainWindow::resizeEvent(QResizeEvent* event)
+{
+    QMainWindow::resizeEvent(event);
+    updatePreviewZoom();
+}
+
+void MainWindow::setPreviewZoom(int percent)
+{
+    previewZoomPercent_ = qBound(50, percent, 400);
+    zoomLabel_->setText(QString::number(previewZoomPercent_) + "%");
+    updatePreviewZoom();
+}
+
+void MainWindow::updatePreviewZoom()
+{
+    if (originalImage_.isNull()) return;
+
+    const QSize originalViewport = originalScroll_->viewport()->size();
+    if (originalViewport.isEmpty()) return;
+
+    const QSize fittedOriginal = originalImage_.size().scaled(
+        originalViewport, Qt::KeepAspectRatio);
+    const QSize originalDisplay = fittedOriginal * previewZoomPercent_ / 100;
+    originalLabel_->setPixmap(QPixmap::fromImage(originalImage_).scaled(
+        originalDisplay, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+    originalLabel_->resize(originalDisplay);
+
+    if (resultImage_.isNull()) return;
+    const QSize resultViewport = resultScroll_->viewport()->size();
+    if (resultViewport.isEmpty()) return;
+    const QSize fittedResult = resultImage_.size().scaled(
+        resultViewport, Qt::KeepAspectRatio);
+    const QSize resultDisplay = fittedResult * previewZoomPercent_ / 100;
+    maskEditCanvas_->setDisplaySize(resultDisplay);
+}
+
 void MainWindow::openImage() {
     QString path = QFileDialog::getOpenFileName(
         this, "Abrir imagem", QDir::homePath(),
@@ -290,6 +492,7 @@ void MainWindow::openImage() {
         return;
     }
     originalImage_ = img;
+    imageNameLabel_->setText(QFileInfo(path).fileName());
     remover_.reset();
     maskEditCanvas_->clearEdits();
     btnUndo_->setEnabled(false);
@@ -597,14 +800,11 @@ void MainWindow::processBatchStep() {
 }
 
 void MainWindow::setOriginal(const QImage& img) {
-    originalLabel_->setPixmap(
-        QPixmap::fromImage(img).scaled(
-            originalScroll_->size(),
-            Qt::KeepAspectRatio,
-            Qt::SmoothTransformation));
+    Q_UNUSED(img)
+    updatePreviewZoom();
 }
 
 void MainWindow::setResult(const QImage& img) {
     Q_UNUSED(img)
-    maskEditCanvas_->update();
+    updatePreviewZoom();
 }

@@ -1,136 +1,74 @@
-# BG Remover Offline
+# BG Remover
 
-Removedor de fundo de imagens **100% offline** — roda inteiramente na sua máquina, sem enviar nenhuma imagem para servidores externos. Diferente de serviços como remove.bg ou Photoroom, todo o processamento acontece localmente via CPU, usando um modelo de segmentação leve em ONNX Runtime.
+Remova fundos de imagens no seu computador — sem contas, créditos ou envio de ficheiros para serviços externos.
 
-## Por que offline?
+O BG Remover é uma aplicação desktop em C++ e Qt que usa U²-Net através do ONNX Runtime para criar PNGs com transparência, processar pastas inteiras e corrigir detalhes manualmente com pincel.
 
-Ferramentas de remoção de fundo consolidadas (remove.bg, Photoroom, Canva) processam as imagens na nuvem — ou seja, qualquer foto que você sobe passa pelo servidor de terceiros. Para uso em lote (catálogos de produtos, processamento de dezenas/centenas de imagens) ou para quem trabalha com conteúdo sensível, isso é uma limitação real. Este projeto nasceu como resposta a essa lacuna: um app desktop nativo, sem contas, sem limites de créditos, sem upload — só o modelo rodando local em CPU.
+![Interface do BG Remover](docs/images/bg-remover-interface.png)
+
+## Porquê usar?
+
+- **Privado por definição:** a imagem e a inferência ficam na sua máquina.
+- **Pronto para trabalhar:** abra uma imagem, remova o fundo, ajuste o que for preciso e exporte em PNG.
+- **Preciso onde importa:** amplie a pré-visualização e use o pincel para restaurar cabelo, roupa ou contornos, ou apagar resíduos.
+- **Feito para volume:** processe uma pasta inteira pela interface ou pela linha de comandos.
+- **Sem dependência de GPU:** funciona em CPU, inclusive em máquinas sem placa gráfica dedicada.
 
 ## Funcionalidades
 
-- **Remoção de fundo** via modelo U²-Net / U²-Netp (ONNX)
-- **Troca de modelo** em tempo real: U²-Netp (rápido, ~5 MB) ou U²-Net (qualidade, ~176 MB), ou caminho customizado
-- **Escolha de fundo de saída**: transparente, branco, preto, ou cor personalizada
-- **Refinamento de bordas** (blur suave no canal alpha) e **limpeza de ruído** (threshold no alpha) — dois filtros pós-processamento independentes e combináveis
-- **Pincel de ajuste manual**: corrige a máscara pintando diretamente sobre o resultado, em dois modos — "Restaurar" (traz de volta pixels que o modelo removeu por engano) e "Apagar" (remove resíduos que o modelo deixou passar) — com 1 nível de desfazer
-- **Processamento em lote**: seleciona uma pasta inteira de imagens e processa todas de uma vez, com barra de progresso e log de erros por arquivo
-- **CLI standalone** (`bg_remover_cli`): processa uma pasta inteira via linha de comando, sem abrir a interface gráfica — útil para scripts e automações
-- **Pacotes portáteis**: `.deb` para Debian/Ubuntu e `.zip` para Windows x64, ambos com runtime e modelo leve incluídos
+- Remoção de fundo com **U²-Netp** (rápido, ~5 MB) e **U²-Net** (mais detalhado, ~176 MB).
+- Fundo transparente, branco, preto ou uma cor personalizada.
+- Refinamento de bordas e limpeza de ruído opcionais.
+- Edição manual da máscara com modos **Restaurar** e **Apagar**.
+- Zoom de 50% a 400%, com ajuste automático à janela e rolagem para trabalhar nos detalhes.
+- Processamento em lote com progresso, log e nomes de saída sem sobrescrever imagens existentes.
+- CLI para automação em scripts.
+- Pacotes preparados para Debian/Ubuntu e Windows x64.
 
-## Stack técnico
+## Como funciona
 
-| Componente | Tecnologia |
-|---|---|
-| Interface gráfica | Qt6 (Widgets) |
-| Inferência do modelo | ONNX Runtime 1.19.0 (C++ API) |
-| Modelo de segmentação | U²-Net / U²-Netp |
-| Build system | CMake + Ninja/Make |
-| Empacotamento | CPack (gerador DEB) |
-| Testes | CTest (pós-processamento e inferência automatizada) |
-| Linguagem | C++17 |
+1. A imagem é preparada no formato esperado pelo modelo (320 × 320, RGB normalizado).
+2. O ONNX Runtime executa o modelo localmente e devolve um mapa que separa o objeto principal do fundo.
+3. O mapa é redimensionado para a resolução original e aplicado como canal alpha.
+4. Se necessário, a máscara recebe filtros de borda/ruído e pode ser corrigida com o pincel.
+5. O resultado é exportado como PNG transparente ou composto numa cor sólida.
 
-Ambiente de desenvolvimento: Xubuntu, CPU-only (sem GPU dedicada) — o projeto foi desenhado desde o início para rodar bem sem aceleração de hardware.
+O mesmo pipeline é usado pela interface, pelo lote e pelo CLI, para que os resultados sejam consistentes em todos os fluxos.
 
-## Como funciona (pipeline técnico)
+## Começar rapidamente
 
-1. **Carregamento**: a imagem é lida via `QImage` (Qt suporta JPG, PNG, BMP, WEBP, TIFF nativamente).
-2. **Pré-processamento**: a imagem é redimensionada para 320×320 (tamanho de entrada do modelo), convertida para tensor CHW (canal-altura-largura) e normalizada com estatísticas ImageNet (`mean=[0.485, 0.456, 0.406]`, `std=[0.229, 0.224, 0.225]`).
-3. **Inferência**: o ONNX Runtime roda o modelo sobre o tensor e retorna um **mapa de saliência** — uma imagem em escala de cinza onde branco = "isso é o objeto principal" e preto = "isso é fundo".
-4. **Pós-processamento**: o mapa (320×320) é redimensionado de volta ao tamanho original da imagem e se torna o **canal alpha** (transparência).
-5. **Filtros opcionais**: se ativados, aplica-se limpeza de ruído (zera pixels com alpha abaixo de um limiar) e/ou refinamento de bordas (blur 3×3 misturado com o alpha original por uma intensidade configurável).
-6. **Composição**: imagem original + canal alpha calculado = PNG com fundo transparente (ou composto com uma cor sólida, se selecionado).
-7. **Ajuste manual (opcional)**: o usuário pode pintar diretamente sobre o resultado para corrigir erros pontuais da máscara.
+### Linux (Debian/Ubuntu)
 
-Toda essa lógica central vive encapsulada na classe `BackgroundRemover`, reutilizada de forma idêntica pela GUI, pelo processamento em lote e pelo CLI — garantindo que o resultado seja sempre o mesmo, não importa por qual caminho a imagem é processada.
+Instale os requisitos de desenvolvimento:
 
-## Estrutura do projeto
-
-```text
-bg-remover/
-├── .github/workflows/              # CI e publicação de releases no GitHub Actions
-├── backgroundremover.h/.cpp       # Inferência ONNX e máscara alpha
-├── imagepostprocessor.h/.cpp      # Threshold, bordas e composição de fundo
-├── processingoptions.h             # Opções compartilhadas entre GUI e CLI
-├── batchprocessor.h/.cpp           # Processamento de diretórios e salvamento seguro
-├── mainwindow.h/.cpp               # Interface gráfica Qt6
-├── maskeditcanvas.h/.cpp           # Edição manual da máscara
-├── main.cpp / main_cli.cpp          # Pontos de entrada GUI e CLI
-├── test_inference.cpp               # Teste de inferência com modelo real
-├── test_postprocessing.cpp          # Teste unitário dos filtros
-├── bg-remover.desktop / .svg        # Integração e ícone Linux
-└── CMakeLists.txt                   # Build, testes e pacote .deb
-```
-
-Arquivos grandes e locais — modelos `*.onnx`, ONNX Runtime extraído, diretórios `build*` e resultados gerados — ficam fora do Git. O repositório contém somente fonte, testes, metadados de build e automação. Os pacotes de release baixam e incluem suas dependências verificadas durante a criação; o usuário final não precisa baixar ONNX Runtime.
-
-## Como compilar
-
-Pré-requisitos:
 ```bash
-sudo apt install qt6-base-dev qt6-base-private-dev build-essential cmake
+sudo apt install build-essential cmake qt6-base-dev qt6-base-private-dev
 ```
 
-O CMake pode baixar o ONNX Runtime 1.19.0 automaticamente, via HTTPS e com checksum SHA-256 fixado. O arquivo é extraído dentro de `build/_deps`, sem modificar a árvore de código:
-
-Baixe os modelos (também na raiz do projeto):
-```bash
-wget https://github.com/danielgatis/rembg/releases/download/v0.0.0/u2netp.onnx
-# Opcional, para qualidade superior (176 MB):
-# https://github.com/danielgatis/rembg/releases/download/v0.0.0/u2net.onnx
-```
+Compile. O CMake descarrega o ONNX Runtime automaticamente e de forma verificada:
 
 ```bash
 cmake -S . -B build -DBG_REMOVER_FETCH_ONNX_RUNTIME=ON
 cmake --build build --parallel
 ```
 
-Se preferir usar uma cópia já extraída, informe o caminho explicitamente:
+Baixe o modelo leve na raiz do projeto:
 
 ```bash
-cmake -S . -B build \
-  -DBG_REMOVER_ONNX_RUNTIME_DIR=/caminho/para/onnxruntime-linux-x64-1.19.0
+wget https://github.com/danielgatis/rembg/releases/download/v0.0.0/u2netp.onnx
 ```
 
-## Como usar
+Abra a aplicação:
 
-**GUI:**
 ```bash
 ./build/bg_remover_gui
 ```
 
-**CLI (processamento em lote sem interface gráfica):**
-```bash
-./build/bg_remover_cli <pasta_entrada> [pasta_saida] [modelo.onnx]
-```
+### Windows
 
-Se nenhum modelo for informado, GUI e CLI procuram `u2netp.onnx` ao lado do executável, no diretório de instalação e depois no diretório atual. Isso permite que o pacote Linux e o ZIP Windows funcionem sem configuração adicional.
+Os releases incluem um ZIP portátil x64. Extraia-o e execute `bg_remover_gui.exe`; o pacote contém Qt, ONNX Runtime e o modelo leve.
 
-O lote evita sobrescrever resultados: em colisões, cria sufixos como `_rembg_2.png`; quando entrada e saída são a mesma pasta, ignora saídas já geradas.
-
-## Testes
-
-```bash
-ctest --test-dir build --output-on-failure
-```
-
-O teste de pós-processamento sempre roda. O teste de inferência é marcado como desativado quando `u2netp.onnx` não está disponível. A CI compila e testa Linux e Windows x64; no Windows ela também verifica que o ZIP contém Qt, o plugin `qwindows.dll` e as DLLs do ONNX Runtime.
-
-**Instalar como pacote Debian:**
-```bash
-cmake -S . -B build-release -DINSTALLED=ON \
-  -DBG_REMOVER_FETCH_ONNX_RUNTIME=ON \
-  -DBG_REMOVER_BUNDLE_MODELS=ON
-cmake --build build-release --parallel
-cd build-release
-cpack -G DEB
-sudo dpkg -i bg-remover_1.0.0_amd64.deb
-```
-
-`BG_REMOVER_BUNDLE_MODELS=ON` exige `u2netp.onnx` na raiz e falha se ele estiver ausente, impedindo a criação acidental de um pacote que não funciona. O modelo maior `u2net.onnx` é incluído apenas se estiver presente.
-
-## Windows
-
-O release para Windows é um ZIP portátil x64: extraia-o e execute `bg_remover_gui.exe`. Ele inclui as DLLs do Qt, o plugin de plataforma, ONNX Runtime, o modelo U²-Netp e o runtime C++ necessário. Para compilar no Windows, use Visual Studio 2022, CMake e Qt 6 para MSVC:
+Para compilar a partir do código-fonte, use Visual Studio 2022, CMake e Qt 6 para MSVC:
 
 ```powershell
 cmake -S . -B build -G "Visual Studio 17 2022" -A x64 `
@@ -138,33 +76,71 @@ cmake -S . -B build -G "Visual Studio 17 2022" -A x64 `
 cmake --build build --config Release --parallel
 ```
 
-Ao criar uma tag `v*`, o workflow de release gera o `.deb` e o ZIP Windows, baixa o modelo leve com checksum verificado e publica os dois no GitHub Releases.
+## Utilização
 
-## Histórico de desenvolvimento
+### Interface gráfica
 
-O projeto foi construído de forma incremental, com um fluxo de trabalho onde uma IA de contexto maior propunha o código e o Claude revisava/corrigia bugs antes da compilação — o histórico de commits reflete aproximadamente esses marcos:
+1. Clique em **Abrir imagem**.
+2. Escolha o modelo e clique em **Remover fundo**.
+3. Use `+`, `−` e **Ajustar** para aproximar ou enquadrar a imagem.
+4. Para pequenos erros, escolha **Restaurar** ou **Apagar** e pinte diretamente sobre o resultado.
+5. Clique em **Salvar como PNG**.
 
-- **M1** — Validação do pipeline em Python (preprocess → inferência ONNX → postprocess → composite), confirmando viabilidade 100% offline em CPU (293ms por imagem)
-- **M2** — Port completo para C++, encapsulado na classe `BackgroundRemover`
-- **M3** — Primeira GUI Qt6 (abrir imagem → remover fundo → salvar PNG)
-- **M4** — Processamento em lote com barra de progresso
-- **M5** — Combo de seleção de modelo, refinamento de bordas, limpeza de ruído
-- **Etapa 1** — Seleção de cor de fundo (transparente/branco/preto/personalizado)
-- **Etapa 2** — Pincel de ajuste manual da máscara (restaurar/apagar)
-- **M6** — Empacotamento `.deb`, testes automatizados, ícone próprio
-- **M7** — CLI para processamento em lote sem interface gráfica
+### Processamento em lote
 
-## Limitações conhecidas
+Na barra inferior, escolha a pasta de entrada e a pasta de saída, depois clique em **Processar lote**. As imagens geradas recebem o sufixo `_rembg`; se já existir um ficheiro com esse nome, a aplicação cria uma variação numerada em vez de o substituir.
 
-- A qualidade da segmentação depende do modelo escolhido: U²-Netp é rápido mas pode deixar resíduos em bordas complexas (cabelo, transparências finas); U²-Net é mais preciso mas ~35x mais pesado
-- O pincel de ajuste manual oferece apenas 1 nível de desfazer
-- O pacote Windows x64 é validado automaticamente na CI; antes da primeira release pública, recomenda-se um teste manual em uma máquina Windows limpa
-- CPU-only: sem suporte a aceleração por GPU (não era um requisito do projeto, dado o hardware alvo)
+### Linha de comandos
+
+```bash
+./build/bg_remover_cli <pasta_entrada> [pasta_saida] [modelo.onnx]
+```
+
+Se não indicar o modelo, a GUI e o CLI procuram `u2netp.onnx` junto do executável, no diretório de instalação e depois no diretório atual.
+
+## Testes
+
+```bash
+ctest --test-dir build --output-on-failure
+```
+
+O projeto inclui testes para pós-processamento e inferência. A integração contínua compila e testa Linux e Windows x64; no Windows, também valida se o ZIP final contém as DLLs e plugins necessários.
+
+## Criar um pacote Linux
+
+```bash
+cmake -S . -B build-release -DINSTALLED=ON \
+  -DBG_REMOVER_FETCH_ONNX_RUNTIME=ON \
+  -DBG_REMOVER_BUNDLE_MODELS=ON
+cmake --build build-release --parallel
+cd build-release
+cpack -G DEB
+```
+
+`BG_REMOVER_BUNDLE_MODELS=ON` exige que `u2netp.onnx` esteja na raiz, impedindo a criação de um pacote que não funciona.
+
+## Estrutura do projeto
+
+```text
+bg-remover/
+├── .github/workflows/        # CI e releases Linux/Windows
+├── backgroundremover.*       # Inferência ONNX e geração da máscara
+├── imagepostprocessor.*      # Filtros alpha e composição do fundo
+├── batchprocessor.*          # Processamento de diretórios
+├── mainwindow.*              # Interface Qt
+├── maskeditcanvas.*          # Pincel e edição da máscara
+├── main_cli.cpp              # Ferramenta de linha de comandos
+└── test_*.cpp                # Testes automatizados
+```
+
+Os modelos, o runtime extraído, os diretórios de build e os resultados locais não entram no Git. Os releases automatizados obtêm o runtime e o modelo leve, verificam os respetivos checksums e criam os pacotes distribuíveis.
+
+## Limitações atuais
+
+- U²-Netp privilegia velocidade; cabelo e transparências muito finas podem precisar de correção manual. U²-Net oferece melhor segmentação, mas é substancialmente maior.
+- A edição manual tem um nível de desfazer.
+- A primeira release Windows deve ser testada numa instalação limpa antes de divulgação alargada.
 
 ## Créditos
 
-Modelos U²-Net / U²-Netp: [Qin et al., 2020](https://github.com/xuebinqin/U-2-Net). Arquivos ONNX pré-convertidos via [rembg](https://github.com/danielgatis/rembg).
-
-## Licença
-
-Ainda não há uma licença definida para o código. Escolha e adicione uma licença antes de publicar o repositório para deixar explícitas as permissões de uso e contribuição.
+Modelos [U²-Net](https://github.com/xuebinqin/U-2-Net) e ficheiros ONNX distribuídos pelo projeto [rembg](https://github.com/danielgatis/rembg).

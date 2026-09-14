@@ -17,6 +17,7 @@ class QPlainTextEdit;
 class QComboBox;
 class QCheckBox;
 class QSpinBox;
+class QResizeEvent;
 class MaskEditCanvas;
 
 class MainWindow : public QMainWindow {
@@ -39,12 +40,17 @@ private slots:
     void editingDone();
 
 private:
+    void resizeEvent(QResizeEvent* event) override;
+    void setPreviewZoom(int percent);
+    void updatePreviewZoom();
     void setOriginal(const QImage& img);
     void setResult(const QImage& img);
     ProcessingOptions currentProcessingOptions() const;
     QColor currentBackgroundColor() const;
 
     QLabel* originalLabel_;
+    QLabel* imageNameLabel_;
+    QLabel* zoomLabel_;
     QScrollArea* originalScroll_;
     QScrollArea* resultScroll_;
     QComboBox* modelCombo_;
@@ -78,6 +84,7 @@ private:
     int batchErrors_;
     bool batchRunning_;
     QColor customBgColor_;
+    int previewZoomPercent_;
 
     QImage originalImage_;
     QImage resultImage_;
