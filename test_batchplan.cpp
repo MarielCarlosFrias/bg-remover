@@ -35,13 +35,16 @@ int main(int argc, char* argv[])
 
     // ---- Caso 1: entrada == saida ----
     // Ignora ficheiros nao-imagem e saidas geradas (_rembg, _rembg_N),
-    // aceita extensoes em maiusculas (FOTO.JPG).
+    // aceita extensoes em maiusculas (OUTRA.JPG).
+    // Nota: usa bases distintas (foto, OUTRA) porque em Windows os
+    // nomes de ficheiro sao case-insensitive e "foto.jpg"/"FOTO.JPG"
+    // colidiriam no mesmo ficheiro.
     {
         QTemporaryDir tmp;
         const QString dir = tmp.path();
         touch(dir + "/foto.jpg");
         touch(dir + "/foto.png");
-        touch(dir + "/FOTO.JPG");
+        touch(dir + "/OUTRA.JPG");
         touch(dir + "/nota.txt");
         touch(dir + "/foto_rembg.png");     // saida anterior
         touch(dir + "/outro_rembg_2.png");  // saida anterior numerada
@@ -52,14 +55,16 @@ int main(int argc, char* argv[])
         CHECK(plan.size() == 3,
               "caso1: so 3 imagens entram no lote (ignora txt e _rembg)");
         const QStringList names = outputNames(plan);
-        CHECK(names.contains("foto_rembg_3.png") || names.contains("foto_rembg_2.png"),
-              "caso1: colisao com foto_rembg.png existente gera _N");
+        CHECK(names.contains("foto_rembg_2.png"),
+              "caso1: colisao com foto_rembg.png existente gera _2");
+        CHECK(names.contains("foto_rembg_3.png"),
+              "caso1: segundo foto.* recebe foto_rembg_3.png");
         CHECK(!names.contains("foto_rembg.png"),
               "caso1: nao sobrescreve foto_rembg.png existente");
         bool sawUpper = false;
         for (const BatchPlan::Entry& e : plan)
-            if (QFileInfo(e.inputPath).fileName() == "FOTO.JPG") sawUpper = true;
-        CHECK(sawUpper, "caso1: FOTO.JPG incluido (filtro case-insensitive)");
+            if (QFileInfo(e.inputPath).fileName() == "OUTRA.JPG") sawUpper = true;
+        CHECK(sawUpper, "caso1: OUTRA.JPG incluido (filtro case-insensitive)");
     }
 
     // ---- Caso 2: saida separada, colisoes em cadeia ----
