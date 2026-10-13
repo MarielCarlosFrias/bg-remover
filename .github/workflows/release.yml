@@ -29,11 +29,15 @@ jobs:
     runs-on: windows-2022
     steps:
       - uses: actions/checkout@v4
-      - uses: jurplel/install-qt-action@v4
-        with:
-          version: '6.7.3'
-          arch: win64_msvc2019_64
-          cache: true
+      - name: Install Qt 6.7.3 (aqt + py7zr fixado)
+        shell: pwsh
+        run: |
+          # Mesmo contorno do CI (issue #344 do install-qt-action).
+          pip install aqtinstall "py7zr==1.1.0"
+          aqt install-qt windows desktop 6.7.3 win64_msvc2019_64 -O Qt
+          $qtDir = "$PWD\Qt\6.7.3\msvc2019_64"
+          Add-Content $env:GITHUB_PATH "$qtDir\bin"
+          "CMAKE_PREFIX_PATH=$qtDir" | Out-File -FilePath $env:GITHUB_ENV -Append
       - name: Download bundled model
         shell: pwsh
         run: |
