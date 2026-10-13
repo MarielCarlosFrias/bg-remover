@@ -4,7 +4,6 @@ Remova fundos de imagens no seu computador — sem contas, créditos ou envio de
 
 O BG Remover é uma aplicação desktop em C++ e Qt que usa U²-Net através do ONNX Runtime para criar PNGs com transparência, processar pastas inteiras e corrigir detalhes manualmente com pincel.
 
-![Interface do BG Remover](docs/images/bg-remover-interface.png)
 
 ## Porquê usar?
 
