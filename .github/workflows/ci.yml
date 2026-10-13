@@ -28,14 +28,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Qt 6.7.3 (aqt + py7zr fixado)
+      - name: Install aqt (pip)
         shell: pwsh
         run: |
-          # install-qt-action falha esporadicamente no Windows por causa
-          # de py7zr >= 1.1.1 (Bad7zFile, issue #344 do action); instalamos
-          # diretamente com py7zr na versao boa.
-          pip install aqtinstall "py7zr==1.1.0"
-          aqt install-qt windows desktop 6.7.3 win64_msvc2019_64 -O Qt
+          python --version
+          python -m pip --version
+          python -m pip install aqtinstall
+          python -m pip list
+
+      - name: Download Qt 6.7.3 (aqt)
+        shell: pwsh
+        run: |
+          # Nota: passou a passar localmente com aqtinstall 3.3.0 +
+          # py7zr 1.1.4 (38s); se falhar aqui, colar o log do passo.
+          python -m aqt install-qt windows desktop 6.7.3 win64_msvc2019_64 -O Qt
           $qtDir = "$PWD\Qt\6.7.3\msvc2019_64"
           Add-Content $env:GITHUB_PATH "$qtDir\bin"
           "CMAKE_PREFIX_PATH=$qtDir" | Out-File -FilePath $env:GITHUB_ENV -Append

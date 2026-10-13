@@ -1,0 +1,42 @@
+2026-10-13 23:37:35,097 - aqt.main - INFO - installer 139945962131968 aqtinstall(aqt) v3.3.0 on Python 3.14.4 [CPython GCC 15.2.0]
+2026-10-13 23:37:35,099 - aqt.helper - DEBUG - helper 139945962131968 Attempt to download checksum at https://download.qt.io/online/qtsdkrepository/windows_x86/desktop/qt6_673/Updates.xml.sha256
+2026-10-13 23:37:38,892 - aqt.helper - DEBUG - helper 134381958259200 Attempt to download checksum at https://download.qt.io/online/qtsdkrepository/windows_x86/desktop/qt6_673/qt.qt6.673.win64_msvc2019_64/6.7.3-0-202409200836qtbase-Windows-Windows_10_22H2-MSVC2019-Windows-Windows_10_22H2-X86_64.7z.sha256
+2026-10-13 23:37:39,990 - aqt.helper - INFO - helper 134381958259200 Downloading qtbase...
+2026-10-13 23:37:39,991 - aqt.installer - DEBUG - installer 134381958259200 Download URL: https://download.qt.io/online/qtsdkrepository/windows_x86/desktop/qt6_673/qt.qt6.673.win64_msvc2019_64/6.7.3-0-202409200836qtbase-Windows-Windows_10_22H2-MSVC2019-Windows-Windows_10_22H2-X86_64.7z
+2026-10-13 23:37:42,090 - aqt.helper - DEBUG - helper 134381958259200 Asked to redirect(302) to: https://qtproject.mirror.liquidtelecom.com/online/qtsdkrepository/windows_x86/desktop/qt6_673/qt.qt6.673.win64_msvc2019_64/6.7.3-0-202409200836qtbase-Windows-Windows_10_22H2-MSVC2019-Windows-Windows_10_22H2-X86_64.7z
+2026-10-13 23:37:42,090 - aqt.helper - INFO - helper 134381958259200 Redirected: qtproject.mirror.liquidtelecom.com
+2026-10-13 23:38:13,706 - aqt.installer - INFO - installer 134381958259200 Finished installation of qtbase-Windows-Windows_10_22H2-MSVC2019-Windows-Windows_10_22H2-X86_64.7z in 34.81610108
+2026-10-13 23:38:13,894 - aqt.updater - INFO - updater 139945962131968 Patching /tmp/qt-win-test/6.7.3/msvc2019_64/lib/Qt6Xmld.prl
+2026-10-13 23:38:13,894 - aqt.updater - INFO - updater 139945962131968 Patching /tmp/qt-win-test/6.7.3/msvc2019_64/lib/Qt6Xml.prl
+2026-10-13 23:38:13,894 - aqt.updater - INFO - updater 139945962131968 Patching /tmp/qt-win-test/6.7.3/msvc2019_64/lib/Qt6Widgetsd.prl
+2026-10-13 23:38:13,895 - aqt.updater - INFO - updater 139945962131968 Patching /tmp/qt-win-test/6.7.3/msvc2019_64/lib/Qt6Widgets.prl
+2026-10-13 23:38:13,895 - aqt.updater - INFO - updater 139945962131968 Patching /tmp/qt-win-test/6.7.3/msvc2019_64/lib/Qt6Testd.prl
+2026-10-13 23:38:13,895 - aqt.updater - INFO - updater 139945962131968 Patching /tmp/qt-win-test/6.7.3/msvc2019_64/lib/Qt6Test.prl
+2026-10-13 23:38:13,895 - aqt.updater - INFO - updater 139945962131968 Patching /tmp/qt-win-test/6.7.3/msvc2019_64/lib/Qt6Sqld.prl
+2026-10-13 23:38:13,895 - aqt.updater - INFO - updater 139945962131968 Patching /tmp/qt-win-test/6.7.3/msvc2019_64/lib/Qt6Sql.prl
+2026-10-13 23:38:13,895 - aqt.updater - INFO - updater 139945962131968 Patching /tmp/qt-win-test/6.7.3/msvc2019_64/lib/Qt6PrintSupportd.prl
+2026-10-13 23:38:13,896 - aqt.updater - INFO - updater 139945962131968 Patching /tmp/qt-win-test/6.7.3/msvc2019_64/lib/Qt6PrintSupport.prl
+2026-10-13 23:38:13,896 - aqt.updater - INFO - updater 139945962131968 Patching /tmp/qt-win-test/6.7.3/msvc2019_64/lib/Qt6OpenGLd.prl
+2026-10-13 23:38:13,896 - aqt.updater - INFO - updater 139945962131968 Patching /tmp/qt-win-test/6.7.3/msvc2019_64/lib/Qt6OpenGLWidgetsd.prl
+2026-10-13 23:38:13,896 - aqt.updater - INFO - updater 139945962131968 Patching /tmp/qt-win-test/6.7.3/msvc2019_64/lib/Qt6OpenGLWidgets.prl
+2026-10-13 23:38:13,896 - aqt.updater - INFO - updater 139945962131968 Patching /tmp/qt-win-test/6.7.3/msvc2019_64/lib/Qt6OpenGL.prl
+2026-10-13 23:38:13,896 - aqt.updater - INFO - updater 139945962131968 Patching /tmp/qt-win-test/6.7.3/msvc2019_64/lib/Qt6Networkd.prl
+2026-10-13 23:38:13,897 - aqt.updater - INFO - updater 139945962131968 Patching /tmp/qt-win-test/6.7.3/msvc2019_64/lib/Qt6Network.prl
+2026-10-13 23:38:13,897 - aqt.updater - INFO - updater 139945962131968 Patching /tmp/qt-win-test/6.7.3/msvc2019_64/lib/Qt6Guid.prl
+2026-10-13 23:38:13,897 - aqt.updater - INFO - updater 139945962131968 Patching /tmp/qt-win-test/6.7.3/msvc2019_64/lib/Qt6Gui.prl
+2026-10-13 23:38:13,897 - aqt.updater - INFO - updater 139945962131968 Patching /tmp/qt-win-test/6.7.3/msvc2019_64/lib/Qt6FbSupportd.prl
+2026-10-13 23:38:13,897 - aqt.updater - INFO - updater 139945962131968 Patching /tmp/qt-win-test/6.7.3/msvc2019_64/lib/Qt6FbSupport.prl
+2026-10-13 23:38:13,897 - aqt.updater - INFO - updater 139945962131968 Patching /tmp/qt-win-test/6.7.3/msvc2019_64/lib/Qt6ExampleIconsd.prl
+2026-10-13 23:38:13,898 - aqt.updater - INFO - updater 139945962131968 Patching /tmp/qt-win-test/6.7.3/msvc2019_64/lib/Qt6ExampleIcons.prl
+2026-10-13 23:38:13,898 - aqt.updater - INFO - updater 139945962131968 Patching /tmp/qt-win-test/6.7.3/msvc2019_64/lib/Qt6EntryPointd.prl
+2026-10-13 23:38:13,898 - aqt.updater - INFO - updater 139945962131968 Patching /tmp/qt-win-test/6.7.3/msvc2019_64/lib/Qt6EntryPoint.prl
+2026-10-13 23:38:13,898 - aqt.updater - INFO - updater 139945962131968 Patching /tmp/qt-win-test/6.7.3/msvc2019_64/lib/Qt6DeviceDiscoverySupportd.prl
+2026-10-13 23:38:13,898 - aqt.updater - INFO - updater 139945962131968 Patching /tmp/qt-win-test/6.7.3/msvc2019_64/lib/Qt6DeviceDiscoverySupport.prl
+2026-10-13 23:38:13,898 - aqt.updater - INFO - updater 139945962131968 Patching /tmp/qt-win-test/6.7.3/msvc2019_64/lib/Qt6DBusd.prl
+2026-10-13 23:38:13,898 - aqt.updater - INFO - updater 139945962131968 Patching /tmp/qt-win-test/6.7.3/msvc2019_64/lib/Qt6DBus.prl
+2026-10-13 23:38:13,898 - aqt.updater - INFO - updater 139945962131968 Patching /tmp/qt-win-test/6.7.3/msvc2019_64/lib/Qt6Cored.prl
+2026-10-13 23:38:13,899 - aqt.updater - INFO - updater 139945962131968 Patching /tmp/qt-win-test/6.7.3/msvc2019_64/lib/Qt6Core.prl
+2026-10-13 23:38:13,899 - aqt.updater - INFO - updater 139945962131968 Patching /tmp/qt-win-test/6.7.3/msvc2019_64/lib/Qt6Concurrentd.prl
+2026-10-13 23:38:13,899 - aqt.updater - INFO - updater 139945962131968 Patching /tmp/qt-win-test/6.7.3/msvc2019_64/lib/Qt6Concurrent.prl
+2026-10-13 23:38:13,899 - aqt.main - INFO - installer 139945962131968 Finished installation
+2026-10-13 23:38:13,899 - aqt.main - INFO - installer 139945962131968 Time elapsed: 38.80299169 second
