@@ -21,7 +21,7 @@ if(WIN32)
     set(ONNX_RUNTIME_ARCHIVE
         "onnxruntime-win-x64-${ONNX_RUNTIME_VERSION}.zip")
     set(ONNX_RUNTIME_SHA256
-        "923aef63b600ae4686933aac380c307a99d0238e44d61678a67bcd188337faf7")
+        "1d796da7001e4843858d0587aa8232976abf9e0ae7fba8deb7fa8156e440efb7")
 else()
     set(ONNX_RUNTIME_ARCHIVE
         "onnxruntime-linux-x64-${ONNX_RUNTIME_VERSION}.tgz")
