@@ -227,6 +227,8 @@ if(WIN32)
     endif()
 
     set(CPACK_GENERATOR "ZIP")
+    # ZIP plano: exes e DLLs na raiz do arquivo (extrair -> executar).
+    set(CPACK_INCLUDE_TOPLEVEL_DIRECTORY 0)
     set(CPACK_PACKAGE_NAME "bg-remover")
     set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
     set(CPACK_PACKAGE_FILE_NAME

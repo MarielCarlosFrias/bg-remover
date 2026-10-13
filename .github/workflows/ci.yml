@@ -61,9 +61,16 @@ jobs:
         shell: pwsh
         run: |
           Expand-Archive dist/bg-remover_1.0.0_win64.zip package
-          if (-not (Test-Path package/platforms/qwindows.dll)) { throw 'qwindows.dll ausente do ZIP' }
-          if (-not (Test-Path package/onnxruntime.dll)) { throw 'onnxruntime.dll ausente do ZIP' }
-          if (-not (Test-Path package/onnxruntime_providers_shared.dll)) { throw 'provider DLL ausente do ZIP' }
+          # Diagnostico: lista tudo o que ficou no ZIP.
+          Get-ChildItem -Recurse package | Select-Object -ExpandProperty FullName
+          $need = @('platforms\qwindows.dll','onnxruntime.dll','onnxruntime_providers_shared.dll')
+          foreach ($f in $need) {
+            if (-not (Test-Path (Join-Path 'package' $f))) {
+              Write-Host "FALTA: $f"
+              throw "Falta $f no ZIP"
+            }
+          }
+          Write-Host 'ZIP OK: todas as DLLs obrigatorias presentes'
 
       - uses: actions/upload-artifact@v4
         with:
