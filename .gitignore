@@ -33,4 +33,3 @@ onnxruntime-win-x64-*/
 # Atalhos e rascunhos locais
 /bg_remover_cli
 *.bak
-/apptheme.h

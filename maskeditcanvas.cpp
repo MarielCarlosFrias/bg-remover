@@ -5,13 +5,13 @@
 #include <QColorDialog>
 #include <QLineF>
 #include <algorithm>
+#include <cmath>
 
 MaskEditCanvas::MaskEditCanvas(QWidget* parent)
     : QWidget(parent),
       mode_(Restore),
       brushRadius_(10),
-      painting_(false),
-      hasUndo_(false)
+      painting_(false)
 {
     setAttribute(Qt::WA_StaticContents, true);
     setMouseTracking(true);
@@ -23,18 +23,22 @@ void MaskEditCanvas::setImage(
     const QImage& image, const QColor& bgColor)
 {
     originalImage_ = image;
+    originalRgba_ = image.convertToFormat(QImage::Format_RGBA8888);
     bgColor_ = bgColor;
-    editBuffer_ = image.copy();
-    undoBuffer_ = QImage();
-    hasUndo_ = false;
+    editBuffer_ = originalRgba_.copy();
+    undoStack_.clear();
+    redoStack_.clear();
+    renderCacheValid_ = false;
     painting_ = false;
     cursorPos_ = QPoint(-1, -1);
+    emit availabilityChanged(canUndo(), canRedo());
     update();
 }
 
 void MaskEditCanvas::setBackgroundColor(const QColor& bgColor)
 {
     bgColor_ = bgColor;
+    renderCacheValid_ = false;
     update();
 }
 
@@ -64,30 +68,55 @@ QImage MaskEditCanvas::getEditedImage() const
                : editBuffer_.copy();
 }
 
+bool MaskEditCanvas::canUndo() const
+{
+    return !undoStack_.isEmpty();
+}
+
+bool MaskEditCanvas::canRedo() const
+{
+    return !redoStack_.isEmpty();
+}
+
 void MaskEditCanvas::undo()
 {
-    if (!hasUndo_) return;
-    editBuffer_ = undoBuffer_.copy();
-    hasUndo_ = false;
+    if (undoStack_.isEmpty()) return;
+    redoStack_.push(editBuffer_.copy());
+    editBuffer_ = undoStack_.pop();
+    renderCacheValid_ = false;
     update();
     emit editingDone();
+    emit availabilityChanged(canUndo(), canRedo());
+}
+
+void MaskEditCanvas::redo()
+{
+    if (redoStack_.isEmpty()) return;
+    undoStack_.push(editBuffer_.copy());
+    editBuffer_ = redoStack_.pop();
+    renderCacheValid_ = false;
+    update();
+    emit editingDone();
+    emit availabilityChanged(canUndo(), canRedo());
 }
 
 void MaskEditCanvas::clearEdits()
 {
     if (originalImage_.isNull()) return;
-    editBuffer_ = originalImage_.copy();
-    undoBuffer_ = QImage();
-    hasUndo_ = false;
+    editBuffer_ = originalRgba_.copy();
+    undoStack_.clear();
+    redoStack_.clear();
+    renderCacheValid_ = false;
     painting_ = false;
     cursorPos_ = QPoint(-1, -1);
+    emit availabilityChanged(canUndo(), canRedo());
     update();
 }
 
 bool MaskEditCanvas::hasEdits() const
 {
     return !editBuffer_.isNull()
-           && editBuffer_ != originalImage_;
+           && editBuffer_ != originalRgba_;
 }
 
 float MaskEditCanvas::scaleFactor() const
@@ -129,29 +158,33 @@ QPoint MaskEditCanvas::widgetToImage(
 
 void MaskEditCanvas::applyBrush(const QPoint& imgPos)
 {
-    if (editBuffer_.isNull()) return;
-    int r = brushRadius_;
-    int w = editBuffer_.width();
-    int h = editBuffer_.height();
+    if (editBuffer_.isNull() || originalRgba_.isNull()) return;
+    renderCacheValid_ = false;
+    const int r = brushRadius_;
+    const int w = editBuffer_.width();
+    const int h = editBuffer_.height();
+    const int cx = imgPos.x();
+    const int cy = imgPos.y();
+
     for (int dy = -r; dy <= r; ++dy) {
-        for (int dx = -r; dx <= r; ++dx) {
-            if (dx * dx + dy * dy > r * r) continue;
-            int px = imgPos.x() + dx;
-            int py = imgPos.y() + dy;
-            if (px < 0 || px >= w
-                || py < 0 || py >= h) {
-                continue;
-            }
-            if (mode_ == Restore) {
-                editBuffer_.setPixel(
-                    px, py,
-                    originalImage_.pixel(px, py));
-            } else {
-                QRgb pxl = editBuffer_.pixel(px, py);
-                editBuffer_.setPixel(
-                    px, py,
-                    qRgba(qRed(pxl), qGreen(pxl),
-                          qBlue(pxl), 0));
+        const int py = cy + dy;
+        if (py < 0 || py >= h) continue;
+        // Cada linha do circulo e um segmento continuo [x0, x1]:
+        // evita o teste pixel a pixel e o setPixel() (lento).
+        const int spanX = static_cast<int>(
+            std::sqrt(static_cast<float>(r * r - dy * dy)));
+        const int x0 = qMax(0, cx - spanX);
+        const int x1 = qMin(w - 1, cx + spanX);
+        QRgb* dst = reinterpret_cast<QRgb*>(
+            editBuffer_.scanLine(py));
+        if (mode_ == Restore) {
+            const QRgb* src = reinterpret_cast<const QRgb*>(
+                originalRgba_.constScanLine(py));
+            for (int x = x0; x <= x1; ++x) dst[x] = src[x];
+        } else {
+            for (int x = x0; x <= x1; ++x) {
+                dst[x] = qRgba(qRed(dst[x]), qGreen(dst[x]),
+                               qBlue(dst[x]), 0);
             }
         }
     }
@@ -164,32 +197,48 @@ QImage MaskEditCanvas::renderWithBackground(
     QImage result(img.size(), QImage::Format_RGBA8888);
 
     if (!bgColor.isValid()) {
-        for (int y = 0; y < img.height(); ++y) {
-            for (int x = 0; x < img.width(); ++x) {
-                bool light = ((x / 8) + (y / 8)) % 2 == 0;
-                result.setPixel(x, y, qRgba(
-                    light ? 0xCC : 0xAA,
-                    light ? 0xCC : 0xAA,
-                    light ? 0xCC : 0xAA, 0xFF));
+        // Xadrez 8x8 preenchido por blocos (rapido, sem loop por pixel).
+        const QRgb lightC = 0xFFCCCCCC;
+        const QRgb darkC  = 0xFFAAAAAA;
+        for (int by = 0; by < result.height(); by += 8) {
+            const int bh = qMin(8, result.height() - by);
+            for (int bx = 0; bx < result.width(); bx += 8) {
+                const bool light = ((bx / 8) + (by / 8)) % 2 == 0;
+                const QRgb c = light ? lightC : darkC;
+                const int bw = qMin(8, result.width() - bx);
+                for (int y = by; y < by + bh; ++y) {
+                    QRgb* row = reinterpret_cast<QRgb*>(
+                        result.scanLine(y));
+                    for (int x = bx; x < bx + bw; ++x) row[x] = c;
+                }
             }
         }
     } else {
         result.fill(bgColor);
     }
 
-    for (int y = 0; y < img.height(); ++y) {
-        for (int x = 0; x < img.width(); ++x) {
-            QRgb src = img.pixel(x, y);
-            int alpha = qAlpha(src);
+    // Mistura alpha com acesso direto por scanline (muito mais rapido
+    // que pixel()/setPixel()); a leitura e a escrita usam a mesma
+    // convensao de bytes, pelo que os canais RGB mantem-se corretos.
+    const QImage src = img.format() == QImage::Format_RGBA8888
+        ? img : img.convertToFormat(QImage::Format_RGBA8888);
+    for (int y = 0; y < src.height(); ++y) {
+        const QRgb* s = reinterpret_cast<const QRgb*>(
+            src.constScanLine(y));
+        QRgb* d = reinterpret_cast<QRgb*>(result.scanLine(y));
+        for (int x = 0; x < src.width(); ++x) {
+            const QRgb p = s[x];
+            const int alpha = qAlpha(p);
             if (alpha == 255) {
-                result.setPixel(x, y, src);
+                d[x] = p;
             } else if (alpha > 0) {
-                QRgb dst = result.pixel(x, y);
-                float a = alpha / 255.0f;
-                int r = static_cast<int>(qRed(src) * a + qRed(dst) * (1 - a));
-                int g = static_cast<int>(qGreen(src) * a + qGreen(dst) * (1 - a));
-                int b = static_cast<int>(qBlue(src) * a + qBlue(dst) * (1 - a));
-                result.setPixel(x, y, qRgba(r, g, b, 255));
+                const float t = alpha / 255.0f;
+                const float u = 1.0f - t;
+                d[x] = qRgba(
+                    static_cast<int>(qRed(p) * t + qRed(d[x]) * u),
+                    static_cast<int>(qGreen(p) * t + qGreen(d[x]) * u),
+                    static_cast<int>(qBlue(p) * t + qBlue(d[x]) * u),
+                    255);
             }
         }
     }
@@ -210,10 +259,15 @@ void MaskEditCanvas::paintEvent(QPaintEvent*)
     }
 
     QPainter painter(this);
-    QRect destRect = getPixmapRect();
+    const QRect destRect = getPixmapRect();
 
-    QImage displayed = renderWithBackground(editBuffer_, bgColor_);
-    painter.drawImage(destRect, displayed);
+    // So recompoem quando ha edicoes novas/mudanca de fundo; movimentos
+    // do rato (cursor do pincel) reutilizam a imagem em cache.
+    if (!renderCacheValid_) {
+        renderCache_ = renderWithBackground(editBuffer_, bgColor_);
+        renderCacheValid_ = true;
+    }
+    painter.drawImage(destRect, renderCache_);
 
     if (cursorPos_.x() >= 0 && cursorPos_.y() >= 0) {
         painter.setPen(QPen(Qt::red, 1, Qt::SolidLine));
@@ -233,8 +287,12 @@ void MaskEditCanvas::mousePressEvent(
     if (imgPos.x() < 0) return;
 
     if (!painting_) {
-        undoBuffer_ = editBuffer_.copy();
-        hasUndo_ = true;
+        // Estado anterior a este traco entra na pilha de undo; o redo
+        // e invalidado (comportamento padrao de editores).
+        undoStack_.push(editBuffer_.copy());
+        if (undoStack_.size() > kMaxUndoLevels)
+            undoStack_.removeFirst();
+        redoStack_.clear();
         painting_ = true;
     }
     lastPoint_ = event->pos();
@@ -271,6 +329,7 @@ void MaskEditCanvas::mouseReleaseEvent(
 {
     if (painting_) {
         painting_ = false;
+        emit availabilityChanged(canUndo(), canRedo());
         update();
         emit editingDone();
     }
@@ -280,6 +339,7 @@ void MaskEditCanvas::leaveEvent(QEvent*)
 {
     if (painting_) {
         painting_ = false;
+        emit availabilityChanged(canUndo(), canRedo());
         update();
         emit editingDone();
     }

@@ -1,7 +1,10 @@
 #include "mainwindow.h"
 #include "maskeditcanvas.h"
+#include "helpwidget.h"
 #include "imagepostprocessor.h"
+#include "modelmanager.h"
 #include "modelpathresolver.h"
+#include <QCloseEvent>
 #include <QFileDialog>
 #include <QMessageBox>
 #include <QScrollArea>
@@ -24,19 +27,25 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QTimer>
-#include <QFile>
-#include <QRegularExpression>
-#include <QSet>
 #include <QColorDialog>
+#include <QDragEnterEvent>
+#include <QDropEvent>
+#include <QCloseEvent>
+#include <QKeySequence>
+#include <QMimeData>
 #include <QResizeEvent>
+#include <QScrollBar>
+#include <QSettings>
+#include <QShortcut>
+#include <QSignalBlocker>
+#include <QTabWidget>
+#include <QtConcurrent/QtConcurrent>
+#include <QWheelEvent>
 #include <algorithm>
 #include <iostream>
 
-static const QSet<QString> kImageExts = {
-    "png", "jpg", "jpeg", "bmp", "webp", "tiff", "tif"
-};
-static const QRegularExpression kGeneratedOutputName(
-    "_rembg(?:_[0-9]+)?$");
+#include "apptheme.h"
+
 static constexpr float kAlphaThreshold = 30.0f;
 
 QColor MainWindow::currentBackgroundColor() const {
@@ -53,7 +62,7 @@ ProcessingOptions MainWindow::currentProcessingOptions() const
     ProcessingOptions options;
     options.modelPath = modelPathEdit_->text();
     options.cleanNoise = noiseCheckBox_->isChecked();
-    options.alphaThreshold = kAlphaThreshold;
+    options.alphaThreshold = noiseThresholdSpin_->value();
     options.refineEdges = refineCheckBox_->isChecked();
     options.edgeRefinementIntensity = 0.5f;
     options.backgroundColor = currentBackgroundColor();
@@ -72,6 +81,7 @@ MainWindow::MainWindow(QWidget* parent, const QString& modelPath)
       folderEdit_(new QLineEdit),
       outputDirEdit_(new QLineEdit("./_rembg")),
       btnOpen_(new QPushButton("Abrir imagem")),
+      btnThemeToggle_(new QPushButton),
       btnRemove_(new QPushButton("Remover fundo")),
       btnSave_(new QPushButton("Salvar como PNG")),
       btnLoadModel_(new QPushButton("Buscar...")),
@@ -79,18 +89,23 @@ MainWindow::MainWindow(QWidget* parent, const QString& modelPath)
       btnSelectOutput_(new QPushButton("...")),
       btnProcessBatch_(new QPushButton("Processar lote")),
       btnUndo_(new QPushButton("Desfazer")),
+      btnRedo_(new QPushButton("Refazer")),
       bgColorCombo_(new QComboBox),
       brushModeCombo_(new QComboBox),
       brushRadiusSpin_(new QSpinBox),
+      noiseThresholdSpin_(new QSpinBox),
       refineCheckBox_(new QCheckBox("Refinar bordas")),
       noiseCheckBox_(new QCheckBox("Limpar ruído")),
       progressBar_(new QProgressBar),
       logEdit_(new QPlainTextEdit),
       maskEditCanvas_(new MaskEditCanvas(this)),
+      zoomDebounce_(new QTimer(this)),
+      modelCache_(std::make_shared<ModelCache>()),
       batchIndex_(0),
       batchOk_(0),
       batchErrors_(0),
       batchRunning_(false),
+      batchCancelRequested_(false),
       customBgColor_(QColor()),
       previewZoomPercent_(100)
 {
@@ -107,22 +122,10 @@ MainWindow::MainWindow(QWidget* parent, const QString& modelPath)
     resultScroll_->setWidgetResizable(false);
     resultScroll_->setAlignment(Qt::AlignCenter);
 
-    modelCombo_->addItem(
-        "U\u00b2-Netp \u2014 r\u00e1pido (~5 MB)",
-        ModelPathResolver::resolve("u2netp.onnx"));
-    modelCombo_->addItem(
-        "U\u00b2-Net  \u2014 qualidade (~176 MB)",
-        ModelPathResolver::resolve("u2net.onnx"));
-    modelCombo_->addItem("Caminho customizado", "");
-    modelCombo_->setCurrentIndex(0);
-
-    if (!modelPath.isEmpty()) {
-        modelPathEdit_->setText(modelPath);
-        modelCombo_->setCurrentIndex(2);
-    } else {
-        modelPathEdit_->setText(
-            modelCombo_->itemData(0).toString());
-    }
+    // A lista de modelos inclui os instalados na aba "Modelos";
+    // a selecao preferida (CLI ou QSettings) e aplicada no fim do
+    // construtor, depois de restaurar as preferencias.
+    populateModelCombo();
     modelPathEdit_->setMinimumWidth(0);
 
     bgColorCombo_->addItem("Transparente", QVariant());
@@ -158,6 +161,14 @@ MainWindow::MainWindow(QWidget* parent, const QString& modelPath)
     logEdit_->setVisible(false);
     logEdit_->setPlaceholderText("Log do processamento...");
 
+    // Reescalar os previews em cada evento de resize e caro: acumula
+    // 40 ms e recalcula uma unica vez quando o utilizador para de
+    // arrastar a janela.
+    zoomDebounce_->setSingleShot(true);
+    zoomDebounce_->setInterval(40);
+    connect(zoomDebounce_, &QTimer::timeout,
+            this,          &MainWindow::updatePreviewZoom);
+
     auto* header = new QFrame;
     header->setObjectName("titleBar");
     auto* headerLayout = new QHBoxLayout(header);
@@ -173,6 +184,12 @@ MainWindow::MainWindow(QWidget* parent, const QString& modelPath)
     headerLayout->addWidget(title);
     headerLayout->addWidget(subtitle);
     headerLayout->addStretch();
+    btnThemeToggle_->setObjectName("themeToggle");
+    btnThemeToggle_->setToolTip("Alternar tema claro/escuro");
+    btnThemeToggle_->setText(AppTheme::isDark()
+        ? QString::fromUtf8("\u2600 Tema claro")
+        : QString::fromUtf8("\u263E Tema escuro"));
+    headerLayout->addWidget(btnThemeToggle_);
     btnOpen_->setObjectName("openButton");
     headerLayout->addWidget(btnOpen_);
 
@@ -219,13 +236,15 @@ MainWindow::MainWindow(QWidget* parent, const QString& modelPath)
     workspaceToolbar->addWidget(editHint);
     auto* zoomOutButton = new QPushButton("−");
     zoomOutButton->setObjectName("zoomButton");
-    zoomOutButton->setToolTip("Diminuir zoom");
+    zoomOutButton->setToolTip(
+        "Diminuir zoom do resultado (Ctrl + roda do rato)");
     auto* zoomInButton = new QPushButton("+");
     zoomInButton->setObjectName("zoomButton");
-    zoomInButton->setToolTip("Aumentar zoom");
+    zoomInButton->setToolTip(
+        "Aumentar zoom do resultado (Ctrl + roda do rato)");
     auto* fitButton = new QPushButton("Ajustar");
     fitButton->setObjectName("fitButton");
-    fitButton->setToolTip("Ajustar imagem à área de trabalho");
+    fitButton->setToolTip("Ajustar resultado à área de trabalho (Ctrl+0)");
     zoomLabel_->setObjectName("zoomLabel");
     workspaceToolbar->addSpacing(4);
     workspaceToolbar->addWidget(zoomOutButton);
@@ -237,10 +256,9 @@ MainWindow::MainWindow(QWidget* parent, const QString& modelPath)
 
     auto* inspector = new QFrame;
     inspector->setObjectName("inspector");
-    inspector->setFixedWidth(260);
     auto* inspectorLayout = new QVBoxLayout(inspector);
-    inspectorLayout->setContentsMargins(14, 14, 14, 14);
-    inspectorLayout->setSpacing(9);
+    inspectorLayout->setContentsMargins(12, 12, 12, 12);
+    inspectorLayout->setSpacing(7);
     auto sectionTitle = [](const QString& text) {
         auto* label = new QLabel(text);
         label->setObjectName("inspectorTitle");
@@ -271,6 +289,16 @@ MainWindow::MainWindow(QWidget* parent, const QString& modelPath)
     inspectorLayout->addLayout(outputForm);
     inspectorLayout->addWidget(refineCheckBox_);
     inspectorLayout->addWidget(noiseCheckBox_);
+    auto* noiseRow = new QHBoxLayout;
+    noiseRow->setContentsMargins(22, 0, 0, 0);
+    noiseThresholdSpin_->setRange(0, 255);
+    noiseThresholdSpin_->setValue(kAlphaThreshold);
+    noiseThresholdSpin_->setSuffix(" /255");
+    noiseThresholdSpin_->setToolTip(
+        "Alfa abaixo deste valor fica totalmente transparente");
+    noiseRow->addWidget(new QLabel("Limiar"));
+    noiseRow->addWidget(noiseThresholdSpin_, 1);
+    inspectorLayout->addLayout(noiseRow);
 
     auto* separatorTwo = new QFrame;
     separatorTwo->setObjectName("inspectorSeparator");
@@ -282,18 +310,44 @@ MainWindow::MainWindow(QWidget* parent, const QString& modelPath)
     brushForm->addRow("Pincel", brushModeCombo_);
     brushForm->addRow("Tamanho", brushRadiusSpin_);
     inspectorLayout->addLayout(brushForm);
-    inspectorLayout->addWidget(btnUndo_);
+    auto* undoRow = new QHBoxLayout;
+    undoRow->addWidget(btnUndo_);
+    undoRow->addWidget(btnRedo_);
+    inspectorLayout->addLayout(undoRow);
     auto* brushHint = new QLabel("Após remover o fundo, use o pincel no painel Resultado para restaurar ou apagar detalhes.");
     brushHint->setObjectName("inspectorHint");
     brushHint->setWordWrap(true);
     inspectorLayout->addWidget(brushHint);
     inspectorLayout->addStretch();
 
+    // O inspector vive dentro de uma area rolavel: com janelas baixas
+    // ele roda em vez de cortar os campos dos formularios.
+    auto* inspectorScroll = new QScrollArea;
+    inspectorScroll->setObjectName("inspectorScroll");
+    inspectorScroll->setWidget(inspector);
+    inspectorScroll->setWidgetResizable(true);
+    inspectorScroll->setFrameShape(QFrame::NoFrame);
+    inspectorScroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    inspectorScroll->setFixedWidth(280);
+
     auto* contentSplitter = new QSplitter(Qt::Horizontal);
     contentSplitter->setChildrenCollapsible(false);
     contentSplitter->addWidget(workspace);
-    contentSplitter->addWidget(inspector);
+    contentSplitter->addWidget(inspectorScroll);
     contentSplitter->setStretchFactor(0, 1);
+
+    // Abas principais: Editor (area de trabalho) e Modelos (catalogo
+    // com download). O cabecalho, o lote e o log ficam sempre visiveis.
+    mainTabs_ = new QTabWidget;
+    mainTabs_->setObjectName("mainTabs");
+    mainTabs_->addTab(contentSplitter, "Editor");
+    modelManager_ = new ModelManagerWidget(this);
+    mainTabs_->addTab(modelManager_, "Modelos");
+    mainTabs_->addTab(new HelpWidget(this), "Ajuda");
+    connect(modelManager_, &ModelManagerWidget::modelInstalled,
+            this, [this](const QString&) {
+        populateModelCombo();
+    });
 
     auto* batchBar = new QFrame;
     batchBar->setObjectName("batchBar");
@@ -322,7 +376,7 @@ MainWindow::MainWindow(QWidget* parent, const QString& modelPath)
     mainLayout->setContentsMargins(16, 0, 16, 16);
     mainLayout->setSpacing(16);
     mainLayout->addWidget(header);
-    mainLayout->addWidget(contentSplitter, 1);
+    mainLayout->addWidget(mainTabs_, 1);
     mainLayout->addWidget(batchBar);
     mainLayout->addWidget(progressBar_);
     auto* btnToggleLog = new QPushButton("Mostrar log \u25be");
@@ -352,50 +406,21 @@ MainWindow::MainWindow(QWidget* parent, const QString& modelPath)
     central->setObjectName("studioRoot");
     setCentralWidget(central);
 
-    central->setStyleSheet(
-        "#studioRoot { background: #171a1d; }"
-        "QFrame#titleBar { min-height: 50px; max-height: 50px;"
-        " background: #20252a; border-bottom: 1px solid #343a40; }"
-        "QFrame#inspector { background: #20252a; border: 1px solid #384047; border-radius: 10px; }"
-        "QFrame#batchBar { background: #1b2024; border: 1px solid #343a40; border-radius: 10px; }"
-        "QFrame#previewPanel { background: #252a2e; border: 1px solid #384047; border-radius: 10px; }"
-        "QLabel#brandMark { min-width: 24px; max-width: 24px; min-height: 24px; max-height: 24px;"
-        " background: #36c66a; color: #102217; border-radius: 7px; font-weight: 800; qproperty-alignment: AlignCenter; }"
-        "QLabel#appTitle { color: #edf2f7; font-size: 15px; font-weight: 600; }"
-        "QLabel#appSubtitle, QLabel#imageName, QLabel#workspaceHint, QLabel#inspectorHint { color: #9ba6af; }"
-        "QLabel#appSubtitle { font-size: 12px; }"
-        "QLabel#imageName { font-weight: 600; }"
-        "QLabel#workspaceHint { font-size: 12px; }"
-        "QLabel#viewModeActive { background: #384149; border: 1px solid #6b7781; border-radius: 7px;"
-        " padding: 6px 10px; color: #edf2f7; font-size: 12px; font-weight: 600; }"
-        "QLabel#zoomLabel { min-width: 42px; color: #a9b3ba; font-size: 12px; qproperty-alignment: AlignCenter; }"
-        "QLabel#previewTitle { padding: 11px 13px; font-weight: 600; color: #e8edf0;"
-        " background: #20252a; border-bottom: 1px solid #384047; }"
-        "QLabel#inspectorTitle { font-size: 14px; font-weight: 600; color: #edf2f4; }"
-        "QLabel#inspectorHint { font-size: 12px; line-height: 1.35; }"
-        "QLabel#batchTitle { font-weight: 700; color: #e8eef1; }"
-        "QScrollArea { background: #252a2e; border: 0; }"
-        "QLineEdit, QComboBox, QSpinBox { background: #2a3137; border: 1px solid #465058;"
-        " border-radius: 7px; padding: 7px 9px; color: #e8edf0; }"
-        "QPushButton { background: #2b3238; border: 1px solid #465058; border-radius: 7px;"
-        " padding: 8px 11px; color: #e8edf0; }"
-        "QPushButton:hover { background: #384149; }"
-        "QPushButton:disabled { background: #252b30; color: #78848c; border-color: #384148; }"
-        "QPushButton#primaryAction { background: #36a85c; border-color: #36a85c;"
-        " color: #102217; font-weight: 700; }"
-        "QPushButton#primaryAction:hover { background: #42cf74; }"
-        "QPushButton#saveButton { background: #36c66a; border-color: #36c66a; color: #102217; font-weight: 700; }"
-        "QPushButton#saveButton:hover { background: #42cf74; }"
-        "QPushButton#logToggle { background: transparent; border: 0; color: #a5b1b9; text-align: left; }"
-        "QPushButton#zoomButton { min-width: 30px; max-width: 30px; padding: 6px; font-size: 16px; }"
-        "QPushButton#fitButton { padding: 6px 9px; font-size: 12px; }"
-        "QFrame#inspectorSeparator { color: #384047; }"
-        "QSplitter::handle { background: #171a1d; }");
+    // O tema (paleta Fusion + QSS global) e aplicado por
+    // AppTheme::apply() em main.cpp; o botao de tema alterna
+    // em tempo de execucao e persiste em QSettings.
 
-    setWindowTitle("BG Remover");
+    setWindowTitle("BG Remover " BG_REMOVER_VERSION);
     setMinimumSize(980, 680);
     resize(1320, 860);
 
+    connect(btnThemeToggle_,   &QPushButton::clicked,
+            this,              [this]() {
+        const bool dark = AppTheme::toggle();
+        btnThemeToggle_->setText(dark
+            ? QString::fromUtf8("\u2600 Tema claro")
+            : QString::fromUtf8("\u263E Tema escuro"));
+    });
     connect(btnOpen_,          &QPushButton::clicked,
             this,              &MainWindow::openImage);
     connect(btnRemove_,        &QPushButton::clicked,
@@ -411,11 +436,58 @@ MainWindow::MainWindow(QWidget* parent, const QString& modelPath)
     connect(btnProcessBatch_,  &QPushButton::clicked,
             this,              &MainWindow::processBatch);
     connect(btnUndo_,          &QPushButton::clicked,
-            this,              [this]() {
-        maskEditCanvas_->undo();
-        resultImage_ = maskEditCanvas_->getEditedImage();
-        btnUndo_->setEnabled(maskEditCanvas_->hasEdits());
+            this,              [this]() { maskEditCanvas_->undo(); });
+    connect(btnRedo_,          &QPushButton::clicked,
+            this,              [this]() { maskEditCanvas_->redo(); });
+    connect(maskEditCanvas_, &MaskEditCanvas::availabilityChanged,
+            this, [this](bool canUndo, bool canRedo) {
+        btnUndo_->setEnabled(canUndo);
+        btnRedo_->setEnabled(canRedo);
     });
+    btnUndo_->setEnabled(false);
+    btnRedo_->setEnabled(false);
+
+    // A inferencia corre numa thread; o resultado volta pelo watcher.
+    connect(&removeWatcher_, &QFutureWatcher<SingleResult>::finished,
+            this,            &MainWindow::onRemoveFinished);
+    connect(&batchWatcher_,  &QFutureWatcher<QString>::finished,
+            this,            &MainWindow::onBatchStepFinished);
+
+    // Atalhos de teclado.
+    auto* scOpen = new QShortcut(QKeySequence::Open, this);
+    connect(scOpen, &QShortcut::activated, this, &MainWindow::openImage);
+    auto* scSave = new QShortcut(QKeySequence::Save, this);
+    connect(scSave, &QShortcut::activated, this, &MainWindow::saveResult);
+    auto* scUndo = new QShortcut(QKeySequence::Undo, this);
+    connect(scUndo, &QShortcut::activated, this,
+            [this]() { maskEditCanvas_->undo(); });
+    auto* scRedo = new QShortcut(QKeySequence::Redo, this);
+    connect(scRedo, &QShortcut::activated, this,
+            [this]() { maskEditCanvas_->redo(); });
+    auto* scRedoY = new QShortcut(QKeySequence("Ctrl+Y"), this);
+    connect(scRedoY, &QShortcut::activated, this,
+            [this]() { maskEditCanvas_->redo(); });
+    auto* scZoomIn = new QShortcut(QKeySequence("Ctrl++"), this);
+    connect(scZoomIn, &QShortcut::activated, this,
+            [this]() { setPreviewZoom(previewZoomPercent_ + 25); });
+    auto* scZoomInEq = new QShortcut(QKeySequence("Ctrl+="), this);
+    connect(scZoomInEq, &QShortcut::activated, this,
+            [this]() { setPreviewZoom(previewZoomPercent_ + 25); });
+    auto* scZoomOut = new QShortcut(QKeySequence("Ctrl+-"), this);
+    connect(scZoomOut, &QShortcut::activated, this,
+            [this]() { setPreviewZoom(previewZoomPercent_ - 25); });
+    auto* scFit = new QShortcut(QKeySequence("Ctrl+0"), this);
+    connect(scFit, &QShortcut::activated, this,
+            [this]() { setPreviewZoom(100); });
+    auto* scQuit = new QShortcut(QKeySequence::Quit, this);
+    connect(scQuit, &QShortcut::activated, this, &QWidget::close);
+
+    // Abrir imagens e pastas arrastando para a janela.
+    setAcceptDrops(true);
+
+    // Ctrl + roda do rato sobre qualquer preview faz zoom do resultado.
+    originalScroll_->viewport()->installEventFilter(this);
+    resultScroll_->viewport()->installEventFilter(this);
     connect(modelCombo_, QOverload<int>::of(
                 &QComboBox::currentIndexChanged),
             this,              &MainWindow::modelIndexChanged);
@@ -436,18 +508,36 @@ MainWindow::MainWindow(QWidget* parent, const QString& modelPath)
             this, [this](int value) {
         maskEditCanvas_->setBrushRadius(value);
     });
+
+    restoreSettings();
+
+    // Modelo preferido: o argumento da linha de comandos tem
+    // prioridade; sem argumento, usa o ultimo guardado em QSettings.
+    QString preferred = modelPath;
+    if (preferred.isEmpty()) {
+        preferred = QSettings("bg-remover", "bg-remover")
+                        .value("model/path").toString();
+    }
+    if (!preferred.isEmpty()) {
+        const int idx = modelCombo_->findData(preferred);
+        if (idx >= 0) {
+            modelCombo_->setCurrentIndex(idx);
+        } else {
+            modelPathEdit_->setText(preferred);
+            modelCombo_->setCurrentIndex(modelCombo_->count() - 1);
+        }
+    }
 }
 
 void MainWindow::editingDone()
 {
     resultImage_ = maskEditCanvas_->getEditedImage();
-    btnUndo_->setEnabled(maskEditCanvas_->hasEdits());
 }
 
 void MainWindow::resizeEvent(QResizeEvent* event)
 {
     QMainWindow::resizeEvent(event);
-    updatePreviewZoom();
+    zoomDebounce_->start();
 }
 
 void MainWindow::setPreviewZoom(int percent)
@@ -457,20 +547,66 @@ void MainWindow::setPreviewZoom(int percent)
     updatePreviewZoom();
 }
 
+void MainWindow::zoomAt(int percent, const QPoint& globalPos)
+{
+    if (resultImage_.isNull()) return;
+
+    const QWidget* canvas = maskEditCanvas_;
+    const QPoint canvasPos = canvas->mapFromGlobal(globalPos);
+    const bool overCanvas =
+        canvasPos.x() >= 0 && canvasPos.y() >= 0
+        && canvasPos.x() < canvas->width()
+        && canvasPos.y() < canvas->height();
+    if (!overCanvas) {
+        // Cursor fora do resultado: zoom sem ancoragem.
+        setPreviewZoom(percent);
+        return;
+    }
+
+    const QSize imageSize = resultImage_.size();
+    const double oldScale =
+        double(canvas->width()) / imageSize.width();
+    setPreviewZoom(percent);
+    const double newScale =
+        double(maskEditCanvas_->width()) / imageSize.width();
+    if (qFuzzyCompare(oldScale, newScale)) return;
+
+    // Mantem o mesmo pixel da imagem sob o cursor: ajusta as barras
+    // de rolagem para a nova escala.
+    const QPointF imgPt(canvasPos.x() / oldScale,
+                        canvasPos.y() / oldScale);
+    const QPoint viewportPos =
+        resultScroll_->viewport()->mapFromGlobal(globalPos);
+    const QPoint target(
+        static_cast<int>(imgPt.x() * newScale) - viewportPos.x(),
+        static_cast<int>(imgPt.y() * newScale) - viewportPos.y());
+
+    // Os limites das barras atualizam-se apos o resize; agenda o
+    // ajuste para o proximo ciclo de eventos.
+    QScrollBar* h = resultScroll_->horizontalScrollBar();
+    QScrollBar* v = resultScroll_->verticalScrollBar();
+    QTimer::singleShot(0, this, [h, v, target]() {
+        h->setValue(target.x());
+        v->setValue(target.y());
+    });
+}
+
 void MainWindow::updatePreviewZoom()
 {
     if (originalImage_.isNull()) return;
 
+    // O painel Original e referencia fixa: fica sempre ajustado ao
+    // espaco disponivel, independentemente do zoom.
     const QSize originalViewport = originalScroll_->viewport()->size();
     if (originalViewport.isEmpty()) return;
-
     const QSize fittedOriginal = originalImage_.size().scaled(
         originalViewport, Qt::KeepAspectRatio);
-    const QSize originalDisplay = fittedOriginal * previewZoomPercent_ / 100;
     originalLabel_->setPixmap(QPixmap::fromImage(originalImage_).scaled(
-        originalDisplay, Qt::KeepAspectRatio, Qt::SmoothTransformation));
-    originalLabel_->resize(originalDisplay);
+        fittedOriginal, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+    originalLabel_->resize(fittedOriginal);
 
+    // O zoom (botoes, Ctrl+/- e Ctrl+roda) aplica-se so ao Resultado,
+    // que e a area de trabalho.
     if (resultImage_.isNull()) return;
     const QSize resultViewport = resultScroll_->viewport()->size();
     if (resultViewport.isEmpty()) return;
@@ -481,10 +617,16 @@ void MainWindow::updatePreviewZoom()
 }
 
 void MainWindow::openImage() {
-    QString path = QFileDialog::getOpenFileName(
-        this, "Abrir imagem", QDir::homePath(),
+    const QString path = QFileDialog::getOpenFileName(
+        this, "Abrir imagem",
+        !folderEdit_->text().isEmpty()
+            ? folderEdit_->text() : QDir::homePath(),
         "Imagens (*.png *.jpg *.jpeg *.bmp *.webp *.tiff)");
     if (path.isEmpty()) return;
+    openPath(path);
+}
+
+void MainWindow::openPath(const QString& path) {
     QImage img(path);
     if (img.isNull()) {
         QMessageBox::warning(this, "Erro",
@@ -493,9 +635,8 @@ void MainWindow::openImage() {
     }
     originalImage_ = img;
     imageNameLabel_->setText(QFileInfo(path).fileName());
-    remover_.reset();
+    resetModel();
     maskEditCanvas_->clearEdits();
-    btnUndo_->setEnabled(false);
     setOriginal(img);
     logEdit_->appendPlainText("[INFO] Carregada: " + path);
 }
@@ -507,7 +648,7 @@ void MainWindow::loadModel() {
     if (path.isEmpty()) return;
     modelPathEdit_->setText(path);
     modelCombo_->setCurrentIndex(2);
-    remover_.reset();
+    resetModel();
     logEdit_->appendPlainText("[INFO] Modelo definido: " + path);
 }
 
@@ -515,7 +656,7 @@ void MainWindow::modelIndexChanged(int index) {
     if (index < 0 || index >= modelCombo_->count()) return;
     QString path = modelCombo_->itemData(index).toString();
     modelPathEdit_->setText(path);
-    remover_.reset();
+    resetModel();
 }
 
 void MainWindow::bgColorChanged(int index) {
@@ -545,44 +686,58 @@ void MainWindow::removeBackground() {
             "Abra uma imagem primeiro.");
         return;
     }
+    if (removeWatcher_.isRunning() || batchWatcher_.isRunning()) return;
 
-    setCursor(Qt::WaitCursor);
-    btnRemove_->setEnabled(false);
-    QApplication::processEvents();
+    // A inferencia corre numa thread de trabalho: a janela continua
+    // reativa e o modelo e carregado la dentro (pode demorar segundos).
+    setUiBusy(true);
+    progressBar_->setRange(0, 0);
+    progressBar_->setValue(0);
+    progressBar_->setVisible(true);
+    logEdit_->appendPlainText("[INFO] A remover fundo...");
 
-    try {
-        ProcessingOptions options = currentProcessingOptions();
-        // A cor de fundo e apenas uma pre-visualizacao na imagem unica;
-        // manter a mascara transparente permite continuar editando-a.
-        options.backgroundColor = QColor();
-        remover_ = std::make_unique<BackgroundRemover>(
-            options.modelPath);
-        resultImage_ = ImagePostProcessor::apply(
-            remover_->removeBackground(originalImage_), options);
-        if (options.cleanNoise) {
-            logEdit_->appendPlainText(
-                "[INFO] Ruído limpo (threshold "
-                + QString::number(kAlphaThreshold) + ").");
-        }
-        if (options.refineEdges) {
-            logEdit_->appendPlainText(
-                "[INFO] Bordas refinadas.");
-        }
-        maskEditCanvas_->setImage(
-            resultImage_, currentBackgroundColor());
-        btnUndo_->setEnabled(false);
-        setResult(resultImage_);
-        logEdit_->appendPlainText("[OK] Fundo removido.");
-    } catch (const Ort::Exception& e) {
-        QMessageBox::critical(this, "Erro ONNX",
-            QString("Falha na inferiencia:\n") + e.what());
-    } catch (const std::exception& e) {
+    ProcessingOptions options = currentProcessingOptions();
+    // A cor de fundo e apenas uma pre-visualizacao na imagem unica;
+    // manter a mascara transparente permite continuar editando-a.
+    options.backgroundColor = QColor();
+
+    removeWatcher_.setFuture(QtConcurrent::run(
+        [cache = modelCache_, img = originalImage_, options]() -> SingleResult {
+            try {
+                const std::shared_ptr<BackgroundRemover> r =
+                    obtainRemover(cache, options.modelPath);
+                if (!r)
+                    return { QImage(), "modelo indisponivel" };
+                return { ImagePostProcessor::apply(
+                             r->removeBackground(img), options),
+                         QString() };
+            } catch (const Ort::Exception& e) {
+                return { QImage(),
+                         QString("Erro ONNX: %1").arg(e.what()) };
+            } catch (const std::exception& e) {
+                return { QImage(), QString::fromUtf8(e.what()) };
+            }
+        }));
+}
+
+void MainWindow::onRemoveFinished()
+{
+    progressBar_->setVisible(false);
+    progressBar_->setRange(0, 100);
+    progressBar_->setValue(0);
+    setUiBusy(false);
+
+    const SingleResult res = removeWatcher_.result();
+    if (!res.error.isEmpty()) {
+        logEdit_->appendPlainText("[ERRO] " + res.error);
         QMessageBox::critical(this, "Erro",
-            QString("Falha:\n") + e.what());
+            "Falha ao remover o fundo:\n" + res.error);
+        return;
     }
-
-    btnRemove_->setEnabled(true);
-    unsetCursor();
+    resultImage_ = res.image;
+    maskEditCanvas_->setImage(resultImage_, currentBackgroundColor());
+    setResult(resultImage_);
+    logEdit_->appendPlainText("[OK] Fundo removido.");
 }
 
 void MainWindow::saveResult() {
@@ -635,7 +790,205 @@ void MainWindow::selectOutputFolder() {
         "[INFO] Dir. de saida definido: " + folder);
 }
 
+void MainWindow::setUiBusy(bool busy)
+{
+    btnOpen_->setEnabled(!busy);
+    btnRemove_->setEnabled(!busy);
+    btnSave_->setEnabled(!busy);
+    btnSelectFolder_->setEnabled(!busy);
+    btnSelectOutput_->setEnabled(!busy);
+    btnLoadModel_->setEnabled(!busy);
+    btnProcessBatch_->setEnabled(!busy);
+    modelCombo_->setEnabled(!busy);
+    modelPathEdit_->setEnabled(!busy);
+    folderEdit_->setEnabled(!busy);
+    outputDirEdit_->setEnabled(!busy);
+}
+
+void MainWindow::resetModel()
+{
+    // O modelo pode estar em uso numa thread de trabalho; o mutex
+    // protege e a copia shared_ptr do worker mantem a sessao viva
+    // ate o passo terminar.
+    QMutexLocker lock(&modelCache_->mutex);
+    modelCache_->remover.reset();
+    modelCache_->loadedPath.clear();
+}
+
+std::shared_ptr<BackgroundRemover> MainWindow::obtainRemover(
+    const std::shared_ptr<ModelCache>& cache,
+    const QString& modelPath)
+{
+    if (!cache) return nullptr;
+    QMutexLocker lock(&cache->mutex);
+    if (!cache->remover || cache->loadedPath != modelPath) {
+        // Carrega dentro da thread de trabalho: a GUI nunca bloqueia.
+        cache->remover = std::make_shared<BackgroundRemover>(modelPath);
+        cache->loadedPath = modelPath;
+    }
+    return cache->remover;
+}
+
+void MainWindow::populateModelCombo()
+{
+    const QString current = modelPathEdit_->text();
+    const QSignalBlocker blocker(modelCombo_);
+    modelCombo_->clear();
+    modelCombo_->addItem(
+        "U\u00b2-Netp \u2014 r\u00e1pido (~5 MB)",
+        ModelPathResolver::resolve("u2netp.onnx"));
+    modelCombo_->addItem(
+        "U\u00b2-Net  \u2014 qualidade (~176 MB)",
+        ModelPathResolver::resolve("u2net.onnx"));
+
+    // Modelos descarregados na aba "Modelos".
+    const QDir modelsDir(ModelPathResolver::userModelsDir());
+    const QStringList onnx = modelsDir.entryList(
+        QStringList() << "*.onnx", QDir::Files, QDir::Name);
+    for (const QString& f : onnx) {
+        if (f.compare("u2netp.onnx", Qt::CaseInsensitive) == 0
+            || f.compare("u2net.onnx", Qt::CaseInsensitive) == 0) {
+            continue; // ja listados acima
+        }
+        modelCombo_->addItem(f, modelsDir.absoluteFilePath(f));
+    }
+
+    modelCombo_->addItem("Caminho customizado", "");
+    int idx = modelCombo_->findData(current);
+    if (idx < 0 && !current.isEmpty()) {
+        modelPathEdit_->setText(current);
+        idx = modelCombo_->count() - 1;
+    }
+    modelCombo_->setCurrentIndex(qMax(0, idx));
+}
+
+void MainWindow::restoreSettings()
+{
+    QSettings settings("bg-remover", "bg-remover");
+    const QByteArray geometry =
+        settings.value("ui/geometry").toByteArray();
+    if (!geometry.isEmpty()) restoreGeometry(geometry);
+
+    folderEdit_->setText(settings.value("batch/inputDir").toString());
+    outputDirEdit_->setText(
+        settings.value("batch/outputDir", "./_rembg").toString());
+    brushRadiusSpin_->setValue(
+        settings.value("brush/radius", 10).toInt());
+    refineCheckBox_->setChecked(
+        settings.value("options/refineEdges", false).toBool());
+    noiseCheckBox_->setChecked(
+        settings.value("options/cleanNoise", false).toBool());
+    noiseThresholdSpin_->setValue(
+        settings.value("options/noiseThreshold", kAlphaThreshold).toInt());
+
+    const QVariant colorVar = settings.value("output/customColor");
+    if (colorVar.isValid()) {
+        const QColor color = colorVar.value<QColor>();
+        if (color.isValid()) {
+            customBgColor_ = color;
+            bgColorCombo_->setItemData(3, QVariant::fromValue(color));
+            bgColorCombo_->setItemText(3, color.name());
+        }
+    }
+    {
+        // Sem o QSignalBlocker, o indice 3 dispararia o dialogo de cor.
+        const QSignalBlocker blocker(bgColorCombo_);
+        const int idx =
+            settings.value("output/bgIndex", 0).toInt();
+        if (idx >= 0 && idx < bgColorCombo_->count())
+            bgColorCombo_->setCurrentIndex(idx);
+    }
+}
+
+void MainWindow::saveSettings()
+{
+    QSettings settings("bg-remover", "bg-remover");
+    settings.setValue("ui/geometry", saveGeometry());
+    settings.setValue("batch/inputDir", folderEdit_->text());
+    settings.setValue("batch/outputDir", outputDirEdit_->text());
+    settings.setValue("brush/radius", brushRadiusSpin_->value());
+    settings.setValue("options/refineEdges",
+                      refineCheckBox_->isChecked());
+    settings.setValue("options/cleanNoise",
+                      noiseCheckBox_->isChecked());
+    settings.setValue("options/noiseThreshold",
+                      noiseThresholdSpin_->value());
+    settings.setValue("output/bgIndex", bgColorCombo_->currentIndex());
+    settings.setValue("output/customColor", customBgColor_);
+    if (!modelPathEdit_->text().isEmpty())
+        settings.setValue("model/path", modelPathEdit_->text());
+}
+
+void MainWindow::closeEvent(QCloseEvent* event)
+{
+    saveSettings();
+    if (batchRunning_) {
+        batchRunning_ = false;
+        batchCancelRequested_ = true;
+    }
+    QMainWindow::closeEvent(event);
+}
+
+void MainWindow::dragEnterEvent(QDragEnterEvent* event)
+{
+    if (event->mimeData()->urls().isEmpty()) return;
+    const QFileInfo fi(
+        event->mimeData()->urls().first().toLocalFile());
+    if (fi.isDir()
+        || BatchPlan::imageExts().contains(fi.suffix().toLower())) {
+        event->acceptProposedAction();
+    }
+}
+
+void MainWindow::dropEvent(QDropEvent* event)
+{
+    if (event->mimeData()->urls().isEmpty()) return;
+    const QFileInfo fi(
+        event->mimeData()->urls().first().toLocalFile());
+    if (fi.isDir()) {
+        folderEdit_->setText(fi.absoluteFilePath());
+        logEdit_->appendPlainText(
+            "[INFO] Pasta de lote: " + fi.absoluteFilePath());
+        event->acceptProposedAction();
+        return;
+    }
+    if (BatchPlan::imageExts().contains(fi.suffix().toLower())) {
+        openPath(fi.absoluteFilePath());
+        event->acceptProposedAction();
+    }
+}
+
+bool MainWindow::eventFilter(QObject* watched, QEvent* event)
+{
+    if (event->type() == QEvent::Wheel) {
+        auto* wheel = static_cast<QWheelEvent*>(event);
+        const bool overPreview =
+            watched == originalScroll_->viewport()
+            || watched == resultScroll_->viewport();
+        if (overPreview
+            && wheel->modifiers().testFlag(Qt::ControlModifier)) {
+            // Zoom ancorado no ponto sob o cursor.
+            zoomAt(previewZoomPercent_
+                       + (wheel->angleDelta().y() > 0 ? 10 : -10),
+                   wheel->globalPosition().toPoint());
+            return true;
+        }
+    }
+    return QMainWindow::eventFilter(watched, event);
+}
+
 void MainWindow::processBatch() {
+    // Em execucao: o botao funciona como "Cancelar lote".
+    if (batchRunning_) {
+        batchCancelRequested_ = true;
+        btnProcessBatch_->setEnabled(false);
+        logEdit_->appendPlainText(
+            "[BATCH] Cancelamento solicitado; a terminar a imagem "
+            "em curso...");
+        return;
+    }
+    if (removeWatcher_.isRunning() || batchWatcher_.isRunning()) return;
+
     if (folderEdit_->text().isEmpty()) {
         QMessageBox::warning(this, "Aviso",
             "Selecione uma pasta primeiro.");
@@ -644,39 +997,11 @@ void MainWindow::processBatch() {
     batchFolder_ = folderEdit_->text();
     batchOutputDir_ = outputDirEdit_->text();
 
-    QDir inputDir(batchFolder_);
-    QDir outputDir(batchOutputDir_);
-    const bool outputIsInputDirectory =
-        QDir::cleanPath(inputDir.absolutePath())
-        == QDir::cleanPath(outputDir.absolutePath());
-    QStringList allFiles = inputDir.entryList(
-        QDir::Files | QDir::NoDotAndDotDot);
-    batchFiles_.clear();
-    batchOutputPaths_.clear();
-    QSet<QString> reservedOutputPaths;
-    for (const QString& f : allFiles) {
-        const QFileInfo fileInfo(f);
-        const bool isGeneratedOutput = outputIsInputDirectory
-            && fileInfo.suffix().compare("png", Qt::CaseInsensitive) == 0
-            && kGeneratedOutputName.match(
-                fileInfo.completeBaseName()).hasMatch();
-        if (!kImageExts.contains(fileInfo.suffix().toLower())
-            || isGeneratedOutput) continue;
-
-        const QString outputBase = fileInfo.completeBaseName() + "_rembg";
-        QString outputPath = outputDir.absoluteFilePath(outputBase + ".png");
-        for (int suffix = 2;
-             reservedOutputPaths.contains(outputPath)
-             || QFileInfo::exists(outputPath);
-             ++suffix) {
-            outputPath = outputDir.absoluteFilePath(
-                outputBase + "_" + QString::number(suffix) + ".png");
-        }
-        reservedOutputPaths.insert(outputPath);
-        batchFiles_ << f;
-        batchOutputPaths_ << outputPath;
-    }
-    if (batchFiles_.isEmpty()) {
+    // Planejamento compartilhado com o CLI (BatchPlan): filtragem
+    // case-insensitive e saidas que nao sobrescrevem ficheiros.
+    batchPlan_ = BatchPlan::build(
+        QDir(batchFolder_), QDir(batchOutputDir_));
+    if (batchPlan_.isEmpty()) {
         QMessageBox::warning(this, "Aviso",
             "Nenhuma imagem encontrada na pasta.");
         return;
@@ -690,113 +1015,102 @@ void MainWindow::processBatch() {
         return;
     }
 
-    btnOpen_->setEnabled(false);
-    btnRemove_->setEnabled(false);
-    btnSave_->setEnabled(false);
-    btnProcessBatch_->setEnabled(false);
-    btnSelectFolder_->setEnabled(false);
-    btnSelectOutput_->setEnabled(false);
-    btnLoadModel_->setEnabled(false);
-    btnUndo_->setEnabled(false);
-    progressBar_->setRange(0, batchFiles_.size());
+    setUiBusy(true);
+    // O botao continua ativo, agora como Cancelar.
+    btnProcessBatch_->setEnabled(true);
+    btnProcessBatch_->setText("Cancelar lote");
+    progressBar_->setRange(0, batchPlan_.size());
     progressBar_->setValue(0);
     progressBar_->setVisible(true);
     logEdit_->clear();
     logEdit_->appendPlainText(
         QString("[BATCH] Processando %1 arquivo(s) "
                 "-> %2")
-            .arg(batchFiles_.size())
+            .arg(batchPlan_.size())
             .arg(batchOutputDir_));
 
     batchIndex_ = 0;
     batchOk_ = 0;
     batchErrors_ = 0;
+    batchCancelRequested_ = false;
     batchRunning_ = true;
     batchOptions_ = currentProcessingOptions();
 
-    try {
-        remover_ = std::make_unique<BackgroundRemover>(
-            batchOptions_.modelPath);
-    } catch (const Ort::Exception& e) {
-        QMessageBox::critical(this, "Erro de modelo",
-            QString("Nao foi possivel carregar o modelo:\n")
-                + e.what());
-        batchRunning_ = false;
-        btnOpen_->setEnabled(true);
-        btnRemove_->setEnabled(true);
-        btnSave_->setEnabled(true);
-        btnProcessBatch_->setEnabled(true);
-        btnSelectFolder_->setEnabled(true);
-        btnSelectOutput_->setEnabled(true);
-        btnLoadModel_->setEnabled(true);
-        btnUndo_->setEnabled(false);
-        progressBar_->setVisible(false);
-        return;
-    }
-
+    // O modelo e carregado dentro da thread de trabalho (obtainRemover
+    // no primeiro passo), por isso esta funcao nunca bloqueia a GUI.
     QTimer::singleShot(0, this,
                        &MainWindow::processBatchStep);
 }
 
 void MainWindow::processBatchStep() {
     if (!batchRunning_) return;
-    if (batchIndex_ >= batchFiles_.size()) {
-        batchRunning_ = false;
-        progressBar_->setValue(batchFiles_.size());
-        logEdit_->appendPlainText(
-            QString("[BATCH] Concluido: %1 OK, %2 erro(s).")
-                .arg(batchOk_).arg(batchErrors_));
-        btnOpen_->setEnabled(true);
-        btnRemove_->setEnabled(true);
-        btnSave_->setEnabled(true);
-        btnProcessBatch_->setEnabled(true);
-        btnSelectFolder_->setEnabled(true);
-        btnSelectOutput_->setEnabled(true);
-        btnLoadModel_->setEnabled(true);
-        btnUndo_->setEnabled(false);
-        progressBar_->setVisible(false);
+    if (batchCancelRequested_ || batchIndex_ >= batchPlan_.size()) {
+        finishBatch();
         return;
     }
 
-    QString file = batchFiles_[batchIndex_];
-    QString inputPath = QDir(batchFolder_)
-                            .absoluteFilePath(file);
-    QFileInfo fi(file);
-    QString outPath = batchOutputPaths_[batchIndex_];
-    QString outName = QFileInfo(outPath).fileName();
+    const BatchPlan::Entry& entry = batchPlan_[batchIndex_];
+    const QString file = QFileInfo(entry.inputPath).fileName();
+    logEdit_->appendPlainText(
+        QString("[BATCH] %1/%2: %3")
+            .arg(batchIndex_ + 1).arg(batchPlan_.size()).arg(file));
 
-    try {
-        QImage img(inputPath);
-        if (img.isNull()) {
-            ++batchErrors_;
-            logEdit_->appendPlainText(
-                "[ERRO] Falha ao carregar: " + file);
-        } else {
-            QImage result = ImagePostProcessor::apply(
-                remover_->removeBackground(img), batchOptions_);
-            if (result.save(outPath, "PNG")) {
-                ++batchOk_;
-                logEdit_->appendPlainText(
-                    "[OK] " + file + " -> " + outName);
-            } else {
-                ++batchErrors_;
-                logEdit_->appendPlainText(
-                    "[ERRO] Falha ao salvar: " + outPath);
+    // Cada imagem corre na thread de trabalho; a GUI so recebe o
+    // resultado via watcher e agenda o passo seguinte.
+    batchWatcher_.setFuture(QtConcurrent::run(
+        [cache = modelCache_, options = batchOptions_,
+         in = entry.inputPath, out = entry.outputPath]() -> QString {
+            try {
+                QImage img(in);
+                if (img.isNull())
+                    return "Falha ao carregar a imagem";
+                const std::shared_ptr<BackgroundRemover> r =
+                    obtainRemover(cache, options.modelPath);
+                if (!r) return "modelo indisponivel";
+                const QImage processed = ImagePostProcessor::apply(
+                    r->removeBackground(img), options);
+                if (!processed.save(out, "PNG"))
+                    return "Falha ao salvar o PNG";
+                return QString();
+            } catch (const Ort::Exception& e) {
+                return QString("Erro ONNX: %1").arg(e.what());
+            } catch (const std::exception& e) {
+                return QString::fromUtf8(e.what());
             }
-        }
-    } catch (const Ort::Exception& e) {
+        }));
+}
+
+void MainWindow::onBatchStepFinished()
+{
+    if (!batchRunning_) return;
+    const QString err = batchWatcher_.result();
+    const BatchPlan::Entry& entry = batchPlan_[batchIndex_];
+    const QString file = QFileInfo(entry.inputPath).fileName();
+    const QString outName = QFileInfo(entry.outputPath).fileName();
+
+    if (err.isEmpty()) {
+        ++batchOk_;
+        logEdit_->appendPlainText("[OK] " + file + " -> " + outName);
+    } else {
         ++batchErrors_;
-        logEdit_->appendPlainText(
-            "[ERRO] " + file + ": " + QString(e.what()));
-    } catch (const std::exception& e) {
-        ++batchErrors_;
-        logEdit_->appendPlainText(
-            "[ERRO] " + file + ": "
-            + QString::fromStdString(e.what()));
+        logEdit_->appendPlainText("[ERRO] " + file + ": " + err);
     }
-    batchIndex_++;
+    ++batchIndex_;
     progressBar_->setValue(batchIndex_);
     QTimer::singleShot(0, this, &MainWindow::processBatchStep);
+}
+
+void MainWindow::finishBatch()
+{
+    batchRunning_ = false;
+    progressBar_->setValue(batchPlan_.size());
+    logEdit_->appendPlainText(
+        QString("[BATCH] %1: %2 OK, %3 erro(s).")
+            .arg(batchCancelRequested_ ? "Cancelado" : "Concluido")
+            .arg(batchOk_).arg(batchErrors_));
+    btnProcessBatch_->setText("Processar lote");
+    setUiBusy(false);
+    batchCancelRequested_ = false;
 }
 
 void MainWindow::setOriginal(const QImage& img) {

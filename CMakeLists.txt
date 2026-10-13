@@ -14,7 +14,7 @@ if(INSTALLED)
     add_definitions(-DINSTALLED)
 endif()
 
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Network Concurrent)
 
 set(ONNX_RUNTIME_VERSION "1.19.0")
 if(WIN32)
@@ -103,15 +103,25 @@ add_executable(bg_remover_gui
     mainwindow.h
     maskeditcanvas.cpp
     maskeditcanvas.h
+    helpwidget.cpp
+    helpwidget.h
     imagepostprocessor.cpp
     imagepostprocessor.h
+    modelmanager.cpp
+    modelmanager.h
     modelpathresolver.cpp
     modelpathresolver.h
     processingoptions.h
+    apptheme.cpp
+    apptheme.h
+    batchplan.h
     backgroundremover.cpp
     backgroundremover.h)
 target_link_libraries(bg_remover_gui
-    Qt6::Core Qt6::Gui Qt6::Widgets onnxruntime)
+    Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Network Qt6::Concurrent
+    onnxruntime)
+target_compile_definitions(bg_remover_gui PRIVATE
+    BG_REMOVER_VERSION="${PROJECT_VERSION}")
 if(NOT WIN32)
     set_target_properties(bg_remover_gui PROPERTIES
         INSTALL_RPATH "/usr/lib/bg-remover"
@@ -123,6 +133,7 @@ add_executable(bg_remover_cli
     main_cli.cpp
     batchprocessor.cpp
     batchprocessor.h
+    batchplan.h
     imagepostprocessor.cpp
     imagepostprocessor.h
     modelpathresolver.cpp
@@ -166,6 +177,12 @@ add_executable(test_postprocessing
     processingoptions.h)
 target_link_libraries(test_postprocessing Qt6::Core Qt6::Gui)
 add_test(NAME postprocessing_test COMMAND test_postprocessing)
+
+add_executable(test_batchplan
+    test_batchplan.cpp
+    batchplan.h)
+target_link_libraries(test_batchplan Qt6::Core)
+add_test(NAME batchplan_test COMMAND test_batchplan)
 
 add_executable(test_inference
     test_inference.cpp

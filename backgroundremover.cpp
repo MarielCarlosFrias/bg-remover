@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <array>
 #include <stdexcept>
+#include <thread>
 
 // Constantes ImageNet
 static constexpr float MEAN[3] = {0.485f, 0.456f, 0.406f};
@@ -14,7 +15,10 @@ BackgroundRemover::BackgroundRemover(const QString& modelPath)
       session_(nullptr)
 {
     Ort::SessionOptions sess_opts;
-    sess_opts.SetIntraOpNumThreads(1);
+    // Usar todos os nucleos disponiveis: 2-4x mais rapido que o valor
+    // fixo de 1 thread em CPU multi-core.
+    sess_opts.SetIntraOpNumThreads(
+        std::max(1u, std::thread::hardware_concurrency()));
     sess_opts.SetGraphOptimizationLevel(
         GraphOptimizationLevel::ORT_ENABLE_ALL);
 
@@ -115,24 +119,18 @@ std::vector<float> BackgroundRemover::buildInputBlob(
 QImage BackgroundRemover::buildAlphaMask(
     const float* mask, int orig_w, int orig_h) const
 {
-    float min_v = mask[0];
-    float max_v = mask[0];
-    for (int i = 1; i < INPUT_SIZE * INPUT_SIZE; ++i) {
-        if (mask[i] < min_v) min_v = mask[i];
-        if (mask[i] > max_v) max_v = mask[i];
-    }
-    float range = max_v - min_v;
-    if (range < 1e-8f) range = 1.0f;
-
+    // U2-Net/ISNet ja devolvem probabilidades 0..1 (sigmoid na ultima
+    // camada). O clamp direto mantem as bordas fieis; a normalizacao
+    // min-max anterior esticava o contraste e saturava o fundo quando
+    // o objeto ocupava pouco da imagem.
     QImage mask_img(INPUT_SIZE, INPUT_SIZE,
                     QImage::Format_Grayscale8);
     for (int y = 0; y < INPUT_SIZE; ++y) {
         quint8* row = mask_img.scanLine(y);
         for (int x = 0; x < INPUT_SIZE; ++x) {
-            float val = (mask[y * INPUT_SIZE + x] - min_v)
-                        / range * 255.0f;
-            row[x] = static_cast<quint8>(
-                std::clamp(val, 0.0f, 255.0f));
+            const float v = std::clamp(
+                mask[y * INPUT_SIZE + x], 0.0f, 1.0f);
+            row[x] = static_cast<quint8>(v * 255.0f + 0.5f);
         }
     }
     return mask_img.scaled(

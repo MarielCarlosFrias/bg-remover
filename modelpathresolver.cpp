@@ -3,6 +3,13 @@
 #include <QCoreApplication>
 #include <QDir>
 #include <QFile>
+#include <QStandardPaths>
+
+QString ModelPathResolver::userModelsDir()
+{
+    return QStandardPaths::writableLocation(
+               QStandardPaths::AppLocalDataLocation) + "/models";
+}
 
 QStringList ModelPathResolver::candidates(const QString& modelName)
 {
@@ -18,6 +25,7 @@ QStringList ModelPathResolver::candidates(const QString& modelName)
 #endif
 #endif
     paths << applicationDir.filePath("../share/bg-remover/" + modelName);
+    paths << userModelsDir() + "/" + modelName;
     paths << QDir::current().filePath(modelName);
     paths.removeDuplicates();
     return paths;

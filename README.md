@@ -16,13 +16,17 @@ O BG Remover é uma aplicação desktop em C++ e Qt que usa U²-Net através do 
 
 ## Funcionalidades
 
-- Remoção de fundo com **U²-Netp** (rápido, ~5 MB) e **U²-Net** (mais detalhado, ~176 MB).
+- Remoção de fundo com **U²-Netp**, **U²-Net**, **Silueta**, **ISNet** e outros — instale novos modelos pela aba **Modelos**, com download integrado.
+- Inferência numa **thread separada**: a janela nunca bloqueia durante o processamento.
+- Processamento em lote com progresso, log, **botão de cancelar** e nomes de saída sem sobrescrever imagens existentes.
 - Fundo transparente, branco, preto ou uma cor personalizada.
-- Refinamento de bordas e limpeza de ruído opcionais.
+- Refinamento de bordas e limpeza de ruído com limiar ajustável.
 - Edição manual da máscara com modos **Restaurar** e **Apagar**.
+- **Desfazer/Refazer multi-nível** (Ctrl+Z / Ctrl+Y) e atalhos de teclado (Ctrl+O, Ctrl+S, Ctrl+±, Ctrl+0).
+- **Arraste e largue** imagens (abre) ou pastas (define o lote) sobre a janela.
+- **Tema escuro e claro** com alternância e persistência; preferências guardadas (pastas, modelo, geometria).
 - Zoom de 50% a 400%, com ajuste automático à janela e rolagem para trabalhar nos detalhes.
-- Processamento em lote com progresso, log e nomes de saída sem sobrescrever imagens existentes.
-- CLI para automação em scripts.
+- CLI para automação em scripts (`bg_remover_cli --help`).
 - Pacotes preparados para Debian/Ubuntu e Windows x64.
 
 ## Como funciona
@@ -85,6 +89,10 @@ cmake --build build --config Release --parallel
 3. Use `+`, `−` e **Ajustar** para aproximar ou enquadrar a imagem.
 4. Para pequenos erros, escolha **Restaurar** ou **Apagar** e pinte diretamente sobre o resultado.
 5. Clique em **Salvar como PNG**.
+
+### Gerir modelos (aba Modelos)
+
+Na aba **Modelos**, no topo da janela, escolha um modelo do catálogo e clique em **Descarregar**. Os ficheiros ficam no diretório de dados da aplicação (`~/.local/share/bg-remover/models` no Linux) e passam a aparecer no seletor de modelos da aba Editor e a ser encontrados automaticamente pelo CLI. Modelos maiores (ISNet, U²-Net completo) dão recortes melhores em cabelo e contornos finos; o U²-Netp continua a ser o padrão leve. As descargas usam HTTPS e o modelo leve tem verificação SHA256; qualquer modelo pode ser apagado do disco na mesma aba.
 
 ### Processamento em lote
 

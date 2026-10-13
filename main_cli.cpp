@@ -10,12 +10,30 @@ int main(int argc, char* argv[]) {
     QCoreApplication app(argc, argv);
     app.setApplicationName("bg_remover_cli");
 
-    if (argc < 2) {
-        std::cerr
+    const auto printHelp = []() {
+        std::cout
+            << "bg_remover_cli 1.0.0 — remove fundos de imagens localmente\n\n"
             << "Uso: bg_remover_cli <pasta_entrada> [pasta_saida] [modelo.onnx]\n"
             << "  pasta_entrada: diretorio com imagens\n"
             << "  pasta_saida:   diretorio de saida (padrao: _rembg_output)\n"
-            << "  modelo.onnx:   caminho do modelo ONNX (padrao: ./u2netp.onnx)\n";
+            << "  modelo.onnx:   caminho do modelo ONNX (padrao: u2netp.onnx;\n"
+            << "                 procurado junto ao executavel e em models/)\n\n"
+            << "Opcoes:\n"
+            << "  -h, --help     mostra esta ajuda\n"
+            << "  -v, --version  mostra a versao\n";
+    };
+
+    if (argc >= 2) {
+        const QString a1 = argv[1];
+        if (a1 == "-h" || a1 == "--help") { printHelp(); return 0; }
+        if (a1 == "-v" || a1 == "--version") {
+            std::cout << "bg_remover_cli 1.0.0" << std::endl;
+            return 0;
+        }
+    }
+
+    if (argc < 2) {
+        printHelp();
         return 1;
     }
 

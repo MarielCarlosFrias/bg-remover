@@ -31,7 +31,8 @@ jobs:
         uses: jurplel/install-qt-action@v4
         with:
           version: '6.7.3'
-          arch: win64_msvc2022_64
+          arch: win64_msvc2019_64
+          cache: true
 
       - name: Configure
         run: cmake -S . -B build -G "Visual Studio 17 2022" -A x64 -DINSTALLED=ON -DBG_REMOVER_FETCH_ONNX_RUNTIME=ON

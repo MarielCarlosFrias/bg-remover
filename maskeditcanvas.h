@@ -5,6 +5,7 @@
 #include <QImage>
 #include <QColor>
 #include <QPoint>
+#include <QStack>
 
 class MaskEditCanvas : public QWidget {
     Q_OBJECT
@@ -20,11 +21,16 @@ public:
     void setDisplaySize(const QSize& size);
     QImage getEditedImage() const;
     void undo();
+    void redo();
     void clearEdits();
+    bool canUndo() const;
+    bool canRedo() const;
     bool hasEdits() const;
 
 signals:
     void editingDone();
+    // Emitido sempre que a disponibilidade de desfazer/refazer muda.
+    void availabilityChanged(bool canUndo, bool canRedo);
 
 public slots:
     void setMode(Mode mode);
@@ -45,6 +51,7 @@ private:
                                         const QColor& bgColor);
 
     QImage originalImage_;
+    QImage originalRgba_;   // originalImage_ normalizado em RGBA8888
     QImage editBuffer_;
     QColor bgColor_;
     Mode mode_;
@@ -52,8 +59,11 @@ private:
     bool painting_;
     QPoint lastPoint_;
     QPoint cursorPos_;
-    QImage undoBuffer_;
-    bool hasUndo_;
+    QStack<QImage> undoStack_;
+    QStack<QImage> redoStack_;
+    static constexpr int kMaxUndoLevels = 10;
+    QImage renderCache_;        // composicao xadrez/fundo + alpha em cache
+    bool renderCacheValid_ = false;
 };
 
 #endif

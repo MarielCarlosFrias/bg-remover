@@ -1,19 +1,12 @@
 #include "batchprocessor.h"
 #include "backgroundremover.h"
+#include "batchplan.h"
 #include "imagepostprocessor.h"
 #include <QDir>
 #include <QFileInfo>
 #include <QImage>
-#include <QRegularExpression>
-#include <QSet>
 #include <iostream>
 #include <utility>
-
-static const QSet<QString> kImageExts = {
-    "png", "jpg", "jpeg", "bmp", "webp", "tiff", "tif"
-};
-static const QRegularExpression kGeneratedOutputName(
-    "_rembg(?:_[0-9]+)?$");
 
 BatchProcessor::BatchProcessor(ProcessingOptions options)
     : options_(std::move(options))
@@ -39,58 +32,32 @@ BatchProcessor::Result BatchProcessor::processDirectory(
         return result;
     }
 
-    // BUGFIX: entryList(filters, ...) e case-sensitive no Linux
-    // (mesmo bug ja corrigido antes em mainwindow.cpp processBatch()) —
-    // "foto.JPG" seria ignorado. Filtro manual case-insensitive.
-    QStringList files;
-    const bool outputIsInputDirectory =
-        QDir::cleanPath(dir.absolutePath())
-        == QDir::cleanPath(outDir.absolutePath());
-    QStringList allFiles = dir.entryList(QDir::Files, QDir::Name);
-    for (const QString& f : allFiles) {
-        const QFileInfo fileInfo(f);
-        const bool isGeneratedOutput = outputIsInputDirectory
-            && fileInfo.suffix().compare("png", Qt::CaseInsensitive) == 0
-            && kGeneratedOutputName.match(
-                fileInfo.completeBaseName()).hasMatch();
-        if (kImageExts.contains(fileInfo.suffix().toLower())
-            && !isGeneratedOutput) {
-            files << f;
-        }
-    }
-
-    if (files.isEmpty()) {
+    // Filtragem de imagens e atribuicao de nomes de saida agora
+    // compartilhados com a GUI via BatchPlan (antes duplicado aqui
+    // e em MainWindow::processBatch). A filtragem e case-insensitive,
+    // portanto "foto.JPG" tambem e processado.
+    const QList<BatchPlan::Entry> plan =
+        BatchPlan::build(dir, outDir);
+    if (plan.isEmpty()) {
         std::cout << "Nenhuma imagem encontrada em: "
                   << inputDir.toStdString() << std::endl;
         return result;
     }
 
-    result.total = files.size();
-    std::cout << "Processando " << files.size()
+    result.total = plan.size();
+    std::cout << "Processando " << plan.size()
               << " imagens..." << std::endl;
 
     try {
         BackgroundRemover remover(options_.modelPath);
-        QSet<QString> reservedOutputPaths;
 
-        for (int i = 0; i < files.size(); ++i) {
-            const QString& file = files[i];
-            QString inputPath = dir.absoluteFilePath(file);
-            QFileInfo fi(file);
-            const QString outputBase = fi.completeBaseName() + "_rembg";
-            QString outName = outputBase + ".png";
-            QString outputPath = outDir.absoluteFilePath(outName);
-            for (int suffix = 2;
-                 reservedOutputPaths.contains(outputPath)
-                 || QFileInfo::exists(outputPath);
-                 ++suffix) {
-                outName = outputBase + "_" + QString::number(suffix)
-                    + ".png";
-                outputPath = outDir.absoluteFilePath(outName);
-            }
-            reservedOutputPaths.insert(outputPath);
+        for (int i = 0; i < plan.size(); ++i) {
+            const QString file =
+                QFileInfo(plan[i].inputPath).fileName();
+            const QString outName =
+                QFileInfo(plan[i].outputPath).fileName();
 
-            QImage img(inputPath);
+            QImage img(plan[i].inputPath);
             if (img.isNull()) {
                 result.errors++;
                 result.errorMessages.append(
@@ -102,12 +69,12 @@ BatchProcessor::Result BatchProcessor::processDirectory(
 
             QImage processed = ImagePostProcessor::apply(
                 remover.removeBackground(img), options_);
-            if (!processed.save(outputPath, "PNG")) {
+            if (!processed.save(plan[i].outputPath, "PNG")) {
                 result.errors++;
                 result.errorMessages.append(
-                    "[ERRO] Falha ao salvar: " + outputPath);
+                    "[ERRO] Falha ao salvar: " + plan[i].outputPath);
                 std::cerr << "[ERRO] Falha ao salvar: "
-                          << outputPath.toStdString() << std::endl;
+                          << plan[i].outputPath.toStdString() << std::endl;
                 continue;
             }
             result.ok++;
