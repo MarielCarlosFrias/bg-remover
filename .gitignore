@@ -33,3 +33,6 @@ onnxruntime-win-x64-*/
 # Atalhos e rascunhos locais
 /bg_remover_cli
 *.bak
+
+# Logs de ferramentas (aqtinstall, etc.)
+aqtinstall.log

@@ -197,18 +197,6 @@ if(NOT EXISTS "${CMAKE_SOURCE_DIR}/u2netp.onnx")
     message(STATUS "Teste de inferencia desativado: u2netp.onnx nao encontrado")
 endif()
 
-configure_file(
-    "${CMAKE_SOURCE_DIR}/check_m5_functions.sh.in"
-    "${CMAKE_BINARY_DIR}/check_m5_functions.sh"
-    @ONLY)
-if(NOT WIN32)
-    add_custom_command(TARGET bg_remover_gui PRE_BUILD
-        COMMAND bash "${CMAKE_BINARY_DIR}/check_m5_functions.sh"
-        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-        COMMENT "Verificando funcoes M5..."
-    )
-endif()
-
 if(WIN32)
     install(TARGETS bg_remover_gui bg_remover_cli RUNTIME DESTINATION .)
     install(FILES "${ONNX_DIR}/lib/onnxruntime.dll" DESTINATION .)
