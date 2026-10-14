@@ -1,4 +1,5 @@
 #include "modelmanager.h"
+#include "i18n.h"
 #include "modelpathresolver.h"
 
 #include <QCryptographicHash>
@@ -31,11 +32,13 @@ ModelManagerWidget::ModelManagerWidget(QWidget* parent)
     : QWidget(parent),
       tree_(new QTreeWidget),
       detailLabel_(new QLabel),
-      btnDownload_(new QPushButton("Descarregar")),
-      btnCancel_(new QPushButton("Cancelar")),
-      btnDelete_(new QPushButton("Apagar do disco")),
+      btnDownload_(new QPushButton(TR("Descarregar", "Download"))),
+      btnCancel_(new QPushButton(TR("Cancelar", "Cancel"))),
+      btnDelete_(new QPushButton(TR("Apagar do disco", "Delete from disk"))),
       progress_(new QProgressBar),
-      statusLabel_(new QLabel("Os modelos ficam guardados em: "
+      statusLabel_(new QLabel(TR(
+          "Os modelos ficam guardados em: ",
+          "Models are stored in: ")
           + ModelPathResolver::userModelsDir())),
       nam_(new QNetworkAccessManager(this))
 {
@@ -43,16 +46,22 @@ ModelManagerWidget::ModelManagerWidget(QWidget* parent)
     layout->setContentsMargins(16, 16, 16, 16);
     layout->setSpacing(10);
 
-    auto* title = new QLabel("Catálogo de modelos");
+    auto* title = new QLabel(TR("Catálogo de modelos",
+                                "Model catalog"));
     title->setObjectName("inspectorTitle");
     layout->addWidget(title);
 
-    auto* hint = new QLabel(
+    auto* hint = new QLabel(TR(
         "Modelos maiores geram recortes melhores (sobretudo cabelo e "
         "contornos finos), mas demoram mais a processar. Escolha, "
-        "descarregue e o modelo passa a estar disponível na aba Editor "
+        "baixe e o modelo passa a estar disponível na aba Editor "
         "e também no CLI. Tudo em HTTPS, com verificação de "
-        "integridade quando disponível.");
+        "integridade quando disponível.",
+        "Larger models produce better cutouts (especially hair and "
+        "fine edges), but take longer to process. Choose, download "
+        "and the model becomes available in the Editor tab and in "
+        "the CLI. All over HTTPS, with integrity checks when "
+        "available."));
     hint->setObjectName("inspectorHint");
     hint->setWordWrap(true);
     layout->addWidget(hint);
@@ -61,7 +70,9 @@ ModelManagerWidget::ModelManagerWidget(QWidget* parent)
     tree_->setAlternatingRowColors(false);
     tree_->setSelectionMode(QAbstractItemView::SingleSelection);
     tree_->setColumnCount(3);
-    tree_->setHeaderLabels({"Modelo", "Tamanho", "Estado"});
+    tree_->setHeaderLabels({TR("Modelo", "Model"),
+                            TR("Tamanho", "Size"),
+                            TR("Estado", "Status")});
     tree_->header()->setSectionResizeMode(0, QHeaderView::Stretch);
     tree_->header()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
     tree_->header()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
@@ -117,36 +128,50 @@ ModelManagerWidget::catalog()
     return {
         // U2-Netp: unico com SHA256 publicado pelo projeto no CI.
         { "u2netp.onnx",
-          "U²-Netp — rápido",
-          "Modelo leve (~4.6 MB), ideal para testes e máquinas fracas. "
-          "É o modelo padrão do programa.",
+          TR("U²-Netp — rápido", "U²-Netp — fast"),
+          TR("Modelo leve (~4.6 MB), ideal para testes e máquinas fracas. "
+             "É o modelo padrão do programa.",
+             "Lightweight model (~4.6 MB), ideal for testing and weaker "
+             "machines. It is the program's default model."),
           4574861, base + "/u2netp.onnx",
           "309c8469258dda742793dce0ebea8e6dd393174f89934733ecc8b14c76f4ddd8" },
         { "silueta.onnx",
-          "Silueta — equilíbrio",
-          "U²-Net comprimido (~43 MB): qualidade próxima do modelo "
-          "completo com download 4x menor.",
+          TR("Silueta — equilíbrio", "Silueta — balanced"),
+          TR("U²-Net comprimido (~43 MB): qualidade próxima do modelo "
+             "completo com download 4x menor.",
+             "Compressed U²-Net (~43 MB): quality close to the full "
+             "model with a 4x smaller download."),
           44173029, base + "/silueta.onnx",
           "75da6c8d2f8096ec743d071951be73b4a8bc7b3e51d9a6625d63644f90ffeedb" },
         { "u2net.onnx",
-          "U²-Net — máxima qualidade",
-          "Modelo completo (~176 MB). Melhor segmentação geral; "
-          "mais lento em CPU.",
+          TR("U²-Net — máxima qualidade", "U²-Net — maximum quality"),
+          TR("Modelo completo (~176 MB). Melhor segmentação geral; "
+             "mais lento em CPU.",
+             "Full model (~176 MB). Best general segmentation; "
+             "slower on CPU."),
           175997641, base + "/u2net.onnx", QString() },
         { "u2net_human_seg.onnx",
-          "U²-Net Human Seg — pessoas",
-          "Especializado em pessoas (~176 MB): retratos, fotos de "
-          "grupo e vídeos com humanos.",
+          TR("U²-Net Human Seg — pessoas",
+             "U²-Net Human Seg — people"),
+          TR("Especializado em pessoas (~176 MB): retratos, fotos de "
+             "grupo e vídeos com humanos.",
+             "Specialized in people (~176 MB): portraits, group "
+             "photos and footage with humans."),
           175997641, base + "/u2net_human_seg.onnx", QString() },
         { "isnet-general-use.onnx",
-          "ISNet General Use — bordas melhores",
-          "Geração ISNet (~178 MB), tipicamente com bordas mais limpas "
-          "e menos resíduos que o U²-Net.",
+          TR("ISNet General Use — bordas melhores",
+             "ISNet General Use — better edges"),
+          TR("Geração ISNet (~178 MB), tipicamente com bordas mais limpas "
+             "e menos resíduos que o U²-Net.",
+             "ISNet generation (~178 MB), typically with cleaner edges "
+             "and less residue than U²-Net."),
           178648008, base + "/isnet-general-use.onnx", QString() },
         { "isnet-anime.onnx",
-          "ISNet Anime — ilustração",
-          "Otimizado para anime/ilustração (~176 MB): mantém linhas e "
-          "áreas planas intactas.",
+          TR("ISNet Anime — ilustração", "ISNet Anime — illustration"),
+          TR("Otimizado para anime/ilustração (~176 MB): mantém linhas e "
+             "áreas planas intactas.",
+             "Optimized for anime/illustration (~176 MB): keeps lines "
+             "and flat areas intact."),
           176069933, base + "/isnet-anime.onnx", QString() },
     };
 }
@@ -175,7 +200,7 @@ void ModelManagerWidget::refreshList()
         item->setText(0, e.title);
         item->setText(1, formatSize(e.sizeBytes));
         item->setText(2, QFile::exists(dir.absoluteFilePath(e.fileName))
-                             ? "Instalado ✓" : "Disponível");
+                             ? TR("Instalado ✓", "Installed ✓") : TR("Disponível", "Available"));
         item->setToolTip(0, e.description + "\n" + e.fileName);
         item->setData(0, Qt::UserRole, e.fileName);
     }
@@ -222,7 +247,9 @@ void ModelManagerWidget::downloadSelected()
     outFile_.setFileName(ModelPathResolver::userModelsDir()
                          + "/" + e.fileName + ".part");
     if (!outFile_.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
-        statusLabel_->setText("Erro: não foi possível escrever em "
+        statusLabel_->setText(
+            TR("Erro: não foi possível escrever em ",
+               "Error: could not write to ")
             + ModelPathResolver::userModelsDir());
         return;
     }
@@ -243,7 +270,8 @@ void ModelManagerWidget::downloadSelected()
 
     progress_->setRange(0, 100);
     progress_->setValue(0);
-    statusLabel_->setText("A descarregar " + e.title + "…");
+    statusLabel_->setText(TR("A descarregar ", "Downloading ")
+                          + e.title + "…");
     setDownloading(true);
 }
 
@@ -253,12 +281,14 @@ void ModelManagerWidget::onDownloadProgress(
     if (total > 0) {
         progress_->setRange(0, 100);
         progress_->setValue(static_cast<int>(received * 100 / total));
-        statusLabel_->setText(QString("A descarregar… %1 / %2 (%3%)")
+        statusLabel_->setText(QString(TR(
+                "A descarregar… %1 / %2 (%3%)",
+                "Downloading… %1 / %2 (%3%)"))
             .arg(formatSize(received), formatSize(total))
             .arg(received * 100 / total));
     } else {
         progress_->setRange(0, 0);
-        statusLabel_->setText("A descarregar… "
+        statusLabel_->setText(TR("A descarregar… ", "Downloading… ")
             + formatSize(received));
     }
 }
@@ -297,8 +327,9 @@ void ModelManagerWidget::onDownloadFinished()
         QFile::remove(partPath);
         statusLabel_->setText(
             err == QNetworkReply::OperationCanceledError
-                ? "Descarga cancelada."
-                : "Erro na descarga: " + errorString);
+                ? TR("Descarga cancelada.", "Download cancelled.")
+                : TR("Erro na descarga: ", "Download error: ")
+                      + errorString);
         refreshList();
         return;
     }
@@ -306,20 +337,25 @@ void ModelManagerWidget::onDownloadFinished()
     if (!expectedHash.isEmpty() && actualHash != expectedHash.toLatin1()) {
         QFile::remove(partPath);
         statusLabel_->setText(
-            "Erro: verificação SHA256 falhou (ficheiro corrompido ou "
-            "alterado no servidor). Descarga rejeitada e apagada.");
+            TR("Erro: verificação SHA256 falhou (ficheiro corrompido ou "
+               "alterado no servidor). Descarga rejeitada e apagada.",
+               "Error: SHA256 verification failed (file corrupted or "
+               "tampered with on the server). Download rejected and "
+               "deleted."));
         refreshList();
         return;
     }
 
     QFile::remove(finalPath);
     if (QFile::rename(partPath, finalPath)) {
-        statusLabel_->setText("Modelo instalado: " + finalPath);
+        statusLabel_->setText(TR("Modelo instalado: ", "Model installed: ")
+                              + finalPath);
         refreshList();
         emit modelInstalled(fileName);
     } else {
-        statusLabel_->setText("Erro: não foi possível finalizar "
-            + finalPath);
+        statusLabel_->setText(
+            TR("Erro: não foi possível finalizar ",
+               "Error: could not finalize ") + finalPath);
     }
     refreshList();
 }
@@ -336,10 +372,11 @@ void ModelManagerWidget::deleteSelected()
     const QString path = ModelPathResolver::userModelsDir()
         + "/" + e.fileName;
     if (QFile::remove(path)) {
-        statusLabel_->setText("Removido: " + path);
+        statusLabel_->setText(TR("Removido: ", "Removed: ") + path);
         refreshList();
         emit modelInstalled(e.fileName);
     } else {
-        statusLabel_->setText("Não foi possível remover: " + path);
+        statusLabel_->setText(
+            TR("Não foi possível remover: ", "Could not remove: ") + path);
     }
 }

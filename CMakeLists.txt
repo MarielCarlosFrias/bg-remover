@@ -101,6 +101,7 @@ add_executable(bg_remover_gui
     main.cpp
     mainwindow.cpp
     mainwindow.h
+    i18n.h
     maskeditcanvas.cpp
     maskeditcanvas.h
     helpwidget.cpp
@@ -131,6 +132,7 @@ endif()
 
 add_executable(bg_remover_cli
     main_cli.cpp
+    i18n.h
     batchprocessor.cpp
     batchprocessor.h
     batchplan.h

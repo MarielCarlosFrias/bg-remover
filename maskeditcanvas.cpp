@@ -1,4 +1,5 @@
 #include "maskeditcanvas.h"
+#include "i18n.h"
 #include <QPainter>
 #include <QMouseEvent>
 #include <QResizeEvent>
@@ -253,8 +254,10 @@ void MaskEditCanvas::paintEvent(QPaintEvent*)
         painter.setPen(Qt::white);
         painter.drawText(
             rect(), Qt::AlignCenter,
-            "Clique em 'Remover fundo' para gerar\n"
-            "uma máscara e edite-a manualmente");
+            TR("Clique em 'Remover fundo' para gerar\n"
+               "uma máscara e edite-a manualmente",
+               "Click 'Remove background' to generate\n"
+               "a mask and edit it manually"));
         return;
     }
 

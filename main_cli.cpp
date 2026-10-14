@@ -4,6 +4,7 @@
 #include <QFile>
 #include <iostream>
 #include "batchprocessor.h"
+#include "i18n.h"
 #include "modelpathresolver.h"
 
 int main(int argc, char* argv[]) {
@@ -12,15 +13,28 @@ int main(int argc, char* argv[]) {
 
     const auto printHelp = []() {
         std::cout
-            << "bg_remover_cli 1.0.0 — remove fundos de imagens localmente\n\n"
-            << "Uso: bg_remover_cli <pasta_entrada> [pasta_saida] [modelo.onnx]\n"
-            << "  pasta_entrada: diretorio com imagens\n"
-            << "  pasta_saida:   diretorio de saida (padrao: _rembg_output)\n"
-            << "  modelo.onnx:   caminho do modelo ONNX (padrao: u2netp.onnx;\n"
-            << "                 procurado junto ao executavel e em models/)\n\n"
-            << "Opcoes:\n"
-            << "  -h, --help     mostra esta ajuda\n"
-            << "  -v, --version  mostra a versao\n";
+            << "bg_remover_cli 1.0.0 — "
+            << I18n::tr("remoção de fundos de imagens localmente",
+                        "offline image background removal").toStdString()
+            << "\n\n"
+            << I18n::tr(
+                "Uso: bg_remover_cli <pasta_entrada> [pasta_saida] [modelo.onnx]\n"
+                "  pasta_entrada: diretorio com imagens\n"
+                "  pasta_saida:   diretorio de saida (padrao: _rembg_output)\n"
+                "  modelo.onnx:   caminho do modelo ONNX (padrao: u2netp.onnx;\n"
+                "                 procurado junto ao executavel e em models/)\n\n"
+                "Opcoes:\n"
+                "  -h, --help     mostra esta ajuda\n"
+                "  -v, --version  mostra a versao\n",
+                "Usage: bg_remover_cli <input_folder> [output_folder] [model.onnx]\n"
+                "  input_folder: directory with images\n"
+                "  output_folder: output directory (default: _rembg_output)\n"
+                "  model.onnx:   ONNX model path (default: u2netp.onnx;\n"
+                "                searched next to the executable and in models/)\n\n"
+                "Options:\n"
+                "  -h, --help     show this help\n"
+                "  -v, --version  show the version").toStdString()
+            << std::endl;
     };
 
     if (argc >= 2) {
@@ -70,20 +84,25 @@ int main(int argc, char* argv[]) {
     }
 
     if (!QFile::exists(modelPath)) {
-        std::cerr << "Modelo nao encontrado: "
+        std::cerr << I18n::tr("Modelo nao encontrado: ",
+                              "Model not found: ").toStdString()
                   << modelPath.toStdString() << std::endl;
         return 1;
     }
 
     if (!QDir(inputDir).exists()) {
-        std::cerr << "Diretorio de entrada nao existe: "
+        std::cerr << I18n::tr("Diretorio de entrada nao existe: ",
+                              "Input directory does not exist: ").toStdString()
                   << inputDir.toStdString() << std::endl;
         return 1;
     }
 
-    std::cout << "Modelo: " << modelPath.toStdString()
-              << "\nEntrada: " << inputDir.toStdString()
-              << "\nSaida: " << outputDir.toStdString()
+    std::cout << I18n::tr("Modelo: ", "Model: ").toStdString()
+              << modelPath.toStdString()
+              << "\n" << I18n::tr("Entrada: ", "Input: ").toStdString()
+              << inputDir.toStdString()
+              << "\n" << I18n::tr("Saida: ", "Output: ").toStdString()
+              << outputDir.toStdString()
               << "\n---\n" << std::flush;
 
     ProcessingOptions options;
@@ -93,12 +112,13 @@ int main(int argc, char* argv[]) {
         inputDir, outputDir);
 
     std::cout << "---\n"
-              << "Concluido: " << r.ok << "/"
-              << r.total << " OK, "
-              << r.errors << " erros\n";
+              << I18n::tr("Concluido: ", "Completed: ").toStdString()
+              << r.ok << "/" << r.total << " OK, "
+              << r.errors << " "
+              << I18n::tr("erros", "errors").toStdString() << "\n";
 
     if (!r.errorMessages.isEmpty()) {
-        std::cout << "Erros:\n";
+        std::cout << I18n::tr("Erros:", "Errors:").toStdString() << "\n";
         for (const QString& msg : r.errorMessages) {
             std::cout << "  " << msg.toStdString() << "\n";
         }

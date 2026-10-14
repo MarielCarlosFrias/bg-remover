@@ -1,4 +1,5 @@
 #include "mainwindow.h"
+#include "i18n.h"
 #include "maskeditcanvas.h"
 #include "helpwidget.h"
 #include "imagepostprocessor.h"
@@ -71,8 +72,9 @@ ProcessingOptions MainWindow::currentProcessingOptions() const
 
 MainWindow::MainWindow(QWidget* parent, const QString& modelPath)
     : QMainWindow(parent),
-      originalLabel_(new QLabel("Nenhuma imagem")),
-      imageNameLabel_(new QLabel("Nenhuma imagem selecionada")),
+      originalLabel_(new QLabel(TR("Nenhuma imagem", "No image"))),
+      imageNameLabel_(new QLabel(TR("Nenhuma imagem selecionada",
+                                    "No image selected"))),
       zoomLabel_(new QLabel("100%")),
       originalScroll_(new QScrollArea),
       resultScroll_(new QScrollArea),
@@ -80,22 +82,22 @@ MainWindow::MainWindow(QWidget* parent, const QString& modelPath)
       modelPathEdit_(new QLineEdit),
       folderEdit_(new QLineEdit),
       outputDirEdit_(new QLineEdit("./_rembg")),
-      btnOpen_(new QPushButton("Abrir imagem")),
+      btnOpen_(new QPushButton(TR("Abrir imagem", "Open image"))),
       btnThemeToggle_(new QPushButton),
-      btnRemove_(new QPushButton("Remover fundo")),
-      btnSave_(new QPushButton("Salvar como PNG")),
-      btnLoadModel_(new QPushButton("Buscar...")),
+      btnRemove_(new QPushButton(TR("Remover fundo", "Remove background"))),
+      btnSave_(new QPushButton(TR("Salvar como PNG", "Save as PNG"))),
+      btnLoadModel_(new QPushButton(TR("Buscar...", "Browse..."))),
       btnSelectFolder_(new QPushButton("...")),
       btnSelectOutput_(new QPushButton("...")),
-      btnProcessBatch_(new QPushButton("Processar lote")),
-      btnUndo_(new QPushButton("Desfazer")),
-      btnRedo_(new QPushButton("Refazer")),
+      btnProcessBatch_(new QPushButton(TR("Processar lote", "Process batch"))),
+      btnUndo_(new QPushButton(TR("Desfazer", "Undo"))),
+      btnRedo_(new QPushButton(TR("Refazer", "Redo"))),
       bgColorCombo_(new QComboBox),
       brushModeCombo_(new QComboBox),
       brushRadiusSpin_(new QSpinBox),
       noiseThresholdSpin_(new QSpinBox),
-      refineCheckBox_(new QCheckBox("Refinar bordas")),
-      noiseCheckBox_(new QCheckBox("Limpar ruído")),
+      refineCheckBox_(new QCheckBox(TR("Refinar bordas", "Refine edges"))),
+      noiseCheckBox_(new QCheckBox(TR("Limpar ruído", "Clean noise"))),
       progressBar_(new QProgressBar),
       logEdit_(new QPlainTextEdit),
       maskEditCanvas_(new MaskEditCanvas(this)),
@@ -128,17 +130,17 @@ MainWindow::MainWindow(QWidget* parent, const QString& modelPath)
     populateModelCombo();
     modelPathEdit_->setMinimumWidth(0);
 
-    bgColorCombo_->addItem("Transparente", QVariant());
+    bgColorCombo_->addItem(TR("Transparente", "Transparent"), QVariant());
     bgColorCombo_->addItem(
-        "Branco", QVariant::fromValue(QColor(Qt::white)));
+        TR("Branco", "White"), QVariant::fromValue(QColor(Qt::white)));
     bgColorCombo_->addItem(
-        "Preto", QVariant::fromValue(QColor(Qt::black)));
-    bgColorCombo_->addItem("Personalizado...", QVariant());
+        TR("Preto", "Black"), QVariant::fromValue(QColor(Qt::black)));
+    bgColorCombo_->addItem(TR("Personalizado...", "Custom..."), QVariant());
     bgColorCombo_->setCurrentIndex(0);
     bgColorCombo_->setMaximumWidth(160);
 
-    brushModeCombo_->addItem("Restaurar");
-    brushModeCombo_->addItem("Apagar");
+    brushModeCombo_->addItem(TR("Restaurar", "Restore"));
+    brushModeCombo_->addItem(TR("Apagar", "Erase"));
     brushModeCombo_->setCurrentIndex(0);
 
     brushRadiusSpin_->setRange(1, 200);
@@ -184,14 +186,36 @@ MainWindow::MainWindow(QWidget* parent, const QString& modelPath)
     headerLayout->addWidget(title);
     headerLayout->addWidget(subtitle);
     headerLayout->addStretch();
+    langCombo_ = new QComboBox;
+    langCombo_->setObjectName("langCombo");
+    // Nomes de idioma sempre na propria lingua (pratica padrao).
+    langCombo_->addItem("\U0001F310 PT-BR", "pt");
+    langCombo_->addItem("\U0001F310 English", "en");
+    langCombo_->setToolTip(
+        TR("Idioma (aplicado ao reiniciar o aplicativo)",
+           "Language (applies after restarting the app)"));
+    langCombo_->setCurrentIndex(
+        I18n::lang() == I18n::Lang::En ? 1 : 0);
+    headerLayout->addWidget(langCombo_);
     btnThemeToggle_->setObjectName("themeToggle");
-    btnThemeToggle_->setToolTip("Alternar tema claro/escuro");
+    btnThemeToggle_->setToolTip(TR("Alternar tema claro/escuro",
+                                   "Toggle light/dark theme"));
     btnThemeToggle_->setText(AppTheme::isDark()
-        ? QString::fromUtf8("\u2600 Tema claro")
-        : QString::fromUtf8("\u263E Tema escuro"));
+        ? TR("\u2600 Tema claro", "\u2600 Light theme")
+        : TR("\u263E Tema escuro", "\u263E Dark theme"));
     headerLayout->addWidget(btnThemeToggle_);
     btnOpen_->setObjectName("openButton");
     headerLayout->addWidget(btnOpen_);
+
+    connect(langCombo_, QOverload<int>::of(
+                &QComboBox::currentIndexChanged),
+            this, [this](int idx) {
+        QSettings settings("bg-remover", "bg-remover");
+        settings.setValue("lang", idx == 1 ? "en" : "pt");
+        QMessageBox::information(this, TR("Idioma", "Language"),
+            TR("O idioma sera aplicado ao reiniciar o BG Remover.",
+               "The language will be applied after restarting BG Remover."));
+    });
 
     auto* originalPanel = new QFrame;
     originalPanel->setObjectName("previewPanel");
@@ -228,7 +252,7 @@ MainWindow::MainWindow(QWidget* parent, const QString& modelPath)
     imageNameLabel_->setObjectName("imageName");
     workspaceToolbar->addWidget(imageNameLabel_);
     workspaceToolbar->addStretch();
-    auto* compareLabel = new QLabel("Comparar");
+    auto* compareLabel = new QLabel(TR("Comparar", "Compare"));
     compareLabel->setObjectName("viewModeActive");
     workspaceToolbar->addWidget(compareLabel);
     auto* editHint = new QLabel("Edite a máscara no resultado");
@@ -237,14 +261,18 @@ MainWindow::MainWindow(QWidget* parent, const QString& modelPath)
     auto* zoomOutButton = new QPushButton("−");
     zoomOutButton->setObjectName("zoomButton");
     zoomOutButton->setToolTip(
-        "Diminuir zoom do resultado (Ctrl + roda do rato)");
+        TR("Diminuir zoom do resultado (Ctrl + roda do mouse)",
+           "Zoom out result (Ctrl + mouse wheel)"));
     auto* zoomInButton = new QPushButton("+");
     zoomInButton->setObjectName("zoomButton");
     zoomInButton->setToolTip(
-        "Aumentar zoom do resultado (Ctrl + roda do rato)");
-    auto* fitButton = new QPushButton("Ajustar");
+        TR("Aumentar zoom do resultado (Ctrl + roda do mouse)",
+           "Zoom in result (Ctrl + mouse wheel)"));
+    auto* fitButton = new QPushButton(TR("Ajustar", "Fit"));
     fitButton->setObjectName("fitButton");
-    fitButton->setToolTip("Ajustar resultado à área de trabalho (Ctrl+0)");
+    fitButton->setToolTip(
+        TR("Ajustar resultado à área de trabalho (Ctrl+0)",
+           "Fit result to the workspace (Ctrl+0)"));
     zoomLabel_->setObjectName("zoomLabel");
     workspaceToolbar->addSpacing(4);
     workspaceToolbar->addWidget(zoomOutButton);
@@ -264,15 +292,16 @@ MainWindow::MainWindow(QWidget* parent, const QString& modelPath)
         label->setObjectName("inspectorTitle");
         return label;
     };
-    inspectorLayout->addWidget(sectionTitle("Remover fundo"));
+    inspectorLayout->addWidget(sectionTitle(
+        TR("Remover fundo", "Remove background")));
     auto* modelForm = new QFormLayout;
     modelForm->setLabelAlignment(Qt::AlignLeft | Qt::AlignVCenter);
     modelForm->setRowWrapPolicy(QFormLayout::WrapAllRows);
-    modelForm->addRow("Modelo", modelCombo_);
+    modelForm->addRow(TR("Modelo", "Model"), modelCombo_);
     auto* modelPathLayout = new QHBoxLayout;
     modelPathLayout->addWidget(modelPathEdit_);
     modelPathLayout->addWidget(btnLoadModel_);
-    modelForm->addRow("Arquivo", modelPathLayout);
+    modelForm->addRow(TR("Arquivo", "File"), modelPathLayout);
     inspectorLayout->addLayout(modelForm);
     btnRemove_->setObjectName("primaryAction");
     btnRemove_->setMinimumHeight(38);
@@ -282,10 +311,12 @@ MainWindow::MainWindow(QWidget* parent, const QString& modelPath)
     separatorOne->setObjectName("inspectorSeparator");
     separatorOne->setFrameShape(QFrame::HLine);
     inspectorLayout->addWidget(separatorOne);
-    inspectorLayout->addWidget(sectionTitle("Ajustes de saída"));
+    inspectorLayout->addWidget(sectionTitle(
+        TR("Ajustes de saída", "Output adjustments")));
     auto* outputForm = new QFormLayout;
     outputForm->setRowWrapPolicy(QFormLayout::WrapAllRows);
-    outputForm->addRow("Fundo ao salvar", bgColorCombo_);
+    outputForm->addRow(TR("Fundo ao salvar", "Background on save"),
+                       bgColorCombo_);
     inspectorLayout->addLayout(outputForm);
     inspectorLayout->addWidget(refineCheckBox_);
     inspectorLayout->addWidget(noiseCheckBox_);
@@ -295,8 +326,9 @@ MainWindow::MainWindow(QWidget* parent, const QString& modelPath)
     noiseThresholdSpin_->setValue(kAlphaThreshold);
     noiseThresholdSpin_->setSuffix(" /255");
     noiseThresholdSpin_->setToolTip(
-        "Alfa abaixo deste valor fica totalmente transparente");
-    noiseRow->addWidget(new QLabel("Limiar"));
+        TR("Alfa abaixo deste valor fica totalmente transparente",
+           "Alpha below this value becomes fully transparent"));
+    noiseRow->addWidget(new QLabel(TR("Limiar", "Threshold")));
     noiseRow->addWidget(noiseThresholdSpin_, 1);
     inspectorLayout->addLayout(noiseRow);
 
@@ -304,17 +336,20 @@ MainWindow::MainWindow(QWidget* parent, const QString& modelPath)
     separatorTwo->setObjectName("inspectorSeparator");
     separatorTwo->setFrameShape(QFrame::HLine);
     inspectorLayout->addWidget(separatorTwo);
-    inspectorLayout->addWidget(sectionTitle("Correção manual"));
+    inspectorLayout->addWidget(sectionTitle(
+        TR("Correção manual", "Manual touch-up")));
     auto* brushForm = new QFormLayout;
     brushForm->setRowWrapPolicy(QFormLayout::WrapAllRows);
-    brushForm->addRow("Pincel", brushModeCombo_);
-    brushForm->addRow("Tamanho", brushRadiusSpin_);
+    brushForm->addRow(TR("Pincel", "Brush"), brushModeCombo_);
+    brushForm->addRow(TR("Tamanho", "Size"), brushRadiusSpin_);
     inspectorLayout->addLayout(brushForm);
     auto* undoRow = new QHBoxLayout;
     undoRow->addWidget(btnUndo_);
     undoRow->addWidget(btnRedo_);
     inspectorLayout->addLayout(undoRow);
-    auto* brushHint = new QLabel("Após remover o fundo, use o pincel no painel Resultado para restaurar ou apagar detalhes.");
+    auto* brushHint = new QLabel(TR(
+        "Após remover o fundo, use o pincel no painel Resultado para restaurar ou apagar detalhes.",
+        "After removing the background, use the brush on the Result panel to restore or erase details."));
     brushHint->setObjectName("inspectorHint");
     brushHint->setWordWrap(true);
     inspectorLayout->addWidget(brushHint);
@@ -340,10 +375,10 @@ MainWindow::MainWindow(QWidget* parent, const QString& modelPath)
     // com download). O cabecalho, o lote e o log ficam sempre visiveis.
     mainTabs_ = new QTabWidget;
     mainTabs_->setObjectName("mainTabs");
-    mainTabs_->addTab(contentSplitter, "Editor");
+    mainTabs_->addTab(contentSplitter, TR("Editor", "Editor"));
     modelManager_ = new ModelManagerWidget(this);
-    mainTabs_->addTab(modelManager_, "Modelos");
-    mainTabs_->addTab(new HelpWidget(this), "Ajuda");
+    mainTabs_->addTab(modelManager_, TR("Modelos", "Models"));
+    mainTabs_->addTab(new HelpWidget(this), TR("Ajuda", "Help"));
     connect(modelManager_, &ModelManagerWidget::modelInstalled,
             this, [this](const QString&) {
         populateModelCombo();
@@ -354,19 +389,21 @@ MainWindow::MainWindow(QWidget* parent, const QString& modelPath)
     auto* batchLayout = new QHBoxLayout(batchBar);
     batchLayout->setContentsMargins(16, 12, 16, 12);
     batchLayout->setSpacing(10);
-    auto* batchTitle = new QLabel("Processamento em lote");
+    auto* batchTitle = new QLabel(TR("Processamento em lote",
+                                     "Batch processing"));
     batchTitle->setObjectName("batchTitle");
     batchLayout->addWidget(batchTitle);
     batchLayout->addSpacing(8);
-    folderEdit_->setPlaceholderText("Nenhuma pasta selecionada");
+    folderEdit_->setPlaceholderText(
+        TR("Nenhuma pasta selecionada", "No folder selected"));
     folderEdit_->setMinimumWidth(190);
     batchLayout->addWidget(folderEdit_, 1);
-    btnSelectFolder_->setText("Escolher pasta");
+    btnSelectFolder_->setText(TR("Escolher pasta", "Choose folder"));
     batchLayout->addWidget(btnSelectFolder_);
     outputDirEdit_->setMinimumWidth(120);
     outputDirEdit_->setMaximumWidth(180);
     batchLayout->addWidget(outputDirEdit_, 1);
-    btnSelectOutput_->setText("Salvar em…");
+    btnSelectOutput_->setText(TR("Salvar em…", "Save to…"));
     batchLayout->addWidget(btnSelectOutput_);
     batchLayout->addWidget(btnProcessBatch_);
     btnSave_->setObjectName("saveButton");
@@ -379,7 +416,8 @@ MainWindow::MainWindow(QWidget* parent, const QString& modelPath)
     mainLayout->addWidget(mainTabs_, 1);
     mainLayout->addWidget(batchBar);
     mainLayout->addWidget(progressBar_);
-    auto* btnToggleLog = new QPushButton("Mostrar log \u25be");
+    auto* btnToggleLog = new QPushButton(TR("Mostrar log \u25be",
+                                            "Show log \u25be"));
     btnToggleLog->setObjectName("logToggle");
     mainLayout->addWidget(btnToggleLog);
     mainLayout->addWidget(logEdit_);
@@ -388,8 +426,8 @@ MainWindow::MainWindow(QWidget* parent, const QString& modelPath)
         bool nowVisible = !logEdit_->isVisible();
         logEdit_->setVisible(nowVisible);
         btnToggleLog->setText(nowVisible
-            ? QString::fromUtf8("Esconder log \u25b4")
-            : QString::fromUtf8("Mostrar log \u25be"));
+            ? TR("Esconder log \u25b4", "Hide log \u25b4")
+            : TR("Mostrar log \u25be", "Show log \u25be"));
     });
     connect(zoomOutButton, &QPushButton::clicked, this, [this]() {
         setPreviewZoom(previewZoomPercent_ - 25);
@@ -418,8 +456,8 @@ MainWindow::MainWindow(QWidget* parent, const QString& modelPath)
             this,              [this]() {
         const bool dark = AppTheme::toggle();
         btnThemeToggle_->setText(dark
-            ? QString::fromUtf8("\u2600 Tema claro")
-            : QString::fromUtf8("\u263E Tema escuro"));
+            ? TR("\u2600 Tema claro", "\u2600 Light theme")
+            : TR("\u263E Tema escuro", "\u263E Dark theme"));
     });
     connect(btnOpen_,          &QPushButton::clicked,
             this,              &MainWindow::openImage);
@@ -618,10 +656,11 @@ void MainWindow::updatePreviewZoom()
 
 void MainWindow::openImage() {
     const QString path = QFileDialog::getOpenFileName(
-        this, "Abrir imagem",
+        this, TR("Abrir imagem", "Open image"),
         !folderEdit_->text().isEmpty()
             ? folderEdit_->text() : QDir::homePath(),
-        "Imagens (*.png *.jpg *.jpeg *.bmp *.webp *.tiff)");
+        TR("Imagens (*.png *.jpg *.jpeg *.bmp *.webp *.tiff)",
+           "Images (*.png *.jpg *.jpeg *.bmp *.webp *.tiff)"));
     if (path.isEmpty()) return;
     openPath(path);
 }
@@ -629,8 +668,8 @@ void MainWindow::openImage() {
 void MainWindow::openPath(const QString& path) {
     QImage img(path);
     if (img.isNull()) {
-        QMessageBox::warning(this, "Erro",
-            "Nao foi possivel carregar:\n" + path);
+        QMessageBox::warning(this, TR("Erro", "Error"),
+            TR("Nao foi possivel carregar:\n", "Could not load:\n") + path);
         return;
     }
     originalImage_ = img;
@@ -638,18 +677,19 @@ void MainWindow::openPath(const QString& path) {
     resetModel();
     maskEditCanvas_->clearEdits();
     setOriginal(img);
-    logEdit_->appendPlainText("[INFO] Carregada: " + path);
+    logEdit_->appendPlainText("[INFO] " + TR("Carregada: ", "Loaded: ") + path);
 }
 
 void MainWindow::loadModel() {
     QString path = QFileDialog::getOpenFileName(
-        this, "Carregar modelo ONNX", QDir::homePath(),
-        "ONNX (*.onnx)");
+        this, TR("Carregar modelo ONNX", "Load ONNX model"),
+        QDir::homePath(), "ONNX (*.onnx)");
     if (path.isEmpty()) return;
     modelPathEdit_->setText(path);
     modelCombo_->setCurrentIndex(2);
     resetModel();
-    logEdit_->appendPlainText("[INFO] Modelo definido: " + path);
+    logEdit_->appendPlainText(
+        "[INFO] " + TR("Modelo definido: ", "Model set: ") + path);
 }
 
 void MainWindow::modelIndexChanged(int index) {
@@ -662,9 +702,8 @@ void MainWindow::modelIndexChanged(int index) {
 void MainWindow::bgColorChanged(int index) {
     if (index == 3) {
         QColor color = QColorDialog::getColor(
-            customBgColor_.isValid() ? customBgColor_
-                                      : Qt::white,
-            this, "Escolher cor de fundo");
+            customBgColor_.isValid() ? customBgColor_ : Qt::white,
+            this, TR("Escolher cor de fundo", "Choose background color"));
         if (color.isValid()) {
             customBgColor_ = color;
             bgColorCombo_->setItemData(3,
@@ -682,8 +721,8 @@ void MainWindow::bgColorChanged(int index) {
 
 void MainWindow::removeBackground() {
     if (originalImage_.isNull()) {
-        QMessageBox::warning(this, "Aviso",
-            "Abra uma imagem primeiro.");
+        QMessageBox::warning(this, TR("Aviso", "Warning"),
+            TR("Abra uma imagem primeiro.", "Open an image first."));
         return;
     }
     if (removeWatcher_.isRunning() || batchWatcher_.isRunning()) return;
@@ -694,7 +733,8 @@ void MainWindow::removeBackground() {
     progressBar_->setRange(0, 0);
     progressBar_->setValue(0);
     progressBar_->setVisible(true);
-    logEdit_->appendPlainText("[INFO] A remover fundo...");
+    logEdit_->appendPlainText(
+        "[INFO] " + TR("A remover fundo...", "Removing background..."));
 
     ProcessingOptions options = currentProcessingOptions();
     // A cor de fundo e apenas uma pre-visualizacao na imagem unica;
@@ -734,25 +774,27 @@ void MainWindow::onRemoveFinished()
         // ferramenta de screenshots em modo offscreen) nao ficam
         // bloqueados por uma caixa modal.
         emit jobFinished();
-        QMessageBox::critical(this, "Erro",
-            "Falha ao remover o fundo:\n" + res.error);
+        QMessageBox::critical(this, TR("Erro", "Error"),
+            TR("Falha ao remover o fundo:\n",
+               "Failed to remove the background:\n") + res.error);
         return;
     }
     resultImage_ = res.image;
     maskEditCanvas_->setImage(resultImage_, currentBackgroundColor());
     setResult(resultImage_);
-    logEdit_->appendPlainText("[OK] Fundo removido.");
+    logEdit_->appendPlainText("[OK] " + TR("Fundo removido.",
+                                           "Background removed."));
     emit jobFinished();
 }
 
 void MainWindow::saveResult() {
     if (resultImage_.isNull()) {
-        QMessageBox::warning(this, "Aviso",
-            "Remova o fundo primeiro.");
+        QMessageBox::warning(this, TR("Aviso", "Warning"),
+            TR("Remova o fundo primeiro.", "Remove the background first."));
         return;
     }
     QString path = QFileDialog::getSaveFileName(
-        this, "Salvar PNG", QDir::homePath(),
+        this, TR("Salvar PNG", "Save PNG"), QDir::homePath(),
         "PNG (*.png)");
     if (path.isEmpty()) return;
     QFileInfo fi(path);
@@ -764,35 +806,39 @@ void MainWindow::saveResult() {
         resultImage_, saveOptions);
 
     if (!toSave.save(path, "PNG")) {
-        QMessageBox::critical(this, "Erro",
-            "Nao foi possivel salvar:\n" + path);
+        QMessageBox::critical(this, TR("Erro", "Error"),
+            TR("Nao foi possivel salvar:\n", "Could not save:\n") + path);
     } else {
-        QMessageBox::information(this, "OK",
-            "Salvo:\n" + path);
-        logEdit_->appendPlainText("[OK] PNG salvo: " + path);
+        QMessageBox::information(this, TR("OK", "OK"),
+            TR("Salvo:\n", "Saved:\n") + path);
+        logEdit_->appendPlainText(
+            "[OK] " + TR("PNG salvo: ", "PNG saved: ") + path);
     }
 }
 
 void MainWindow::selectFolder() {
     QString folder = QFileDialog::getExistingDirectory(
-        this, "Selecionar pasta com imagens",
+        this, TR("Selecionar pasta com imagens",
+                 "Select folder with images"),
         folderEdit_->text().isEmpty()
             ? QDir::homePath() : folderEdit_->text());
     if (folder.isEmpty()) return;
     folderEdit_->setText(folder);
     logEdit_->appendPlainText(
-        "[INFO] Pasta selecionada: " + folder);
+        "[INFO] " + TR("Pasta selecionada: ", "Folder selected: ") + folder);
 }
 
 void MainWindow::selectOutputFolder() {
     QString folder = QFileDialog::getExistingDirectory(
-        this, "Selecionar diretorio de saida",
+        this, TR("Selecionar diretorio de saida",
+                 "Select output directory"),
         outputDirEdit_->text().isEmpty()
             ? QDir::homePath() : outputDirEdit_->text());
     if (folder.isEmpty()) return;
     outputDirEdit_->setText(folder);
     logEdit_->appendPlainText(
-        "[INFO] Dir. de saida definido: " + folder);
+        "[INFO] " + TR("Dir. de saida definido: ",
+                       "Output dir. set: ") + folder);
 }
 
 void MainWindow::setUiBusy(bool busy)
@@ -840,10 +886,12 @@ void MainWindow::populateModelCombo()
     const QSignalBlocker blocker(modelCombo_);
     modelCombo_->clear();
     modelCombo_->addItem(
-        "U\u00b2-Netp \u2014 r\u00e1pido (~5 MB)",
+        TR("U\u00b2-Netp \u2014 r\u00e1pido (~5 MB)",
+           "U\u00b2-Netp \u2014 fast (~5 MB)"),
         ModelPathResolver::resolve("u2netp.onnx"));
     modelCombo_->addItem(
-        "U\u00b2-Net  \u2014 qualidade (~176 MB)",
+        TR("U\u00b2-Net  \u2014 qualidade (~176 MB)",
+           "U\u00b2-Net  \u2014 quality (~176 MB)"),
         ModelPathResolver::resolve("u2net.onnx"));
 
     // Modelos descarregados na aba "Modelos".
@@ -858,7 +906,7 @@ void MainWindow::populateModelCombo()
         modelCombo_->addItem(f, modelsDir.absoluteFilePath(f));
     }
 
-    modelCombo_->addItem("Caminho customizado", "");
+    modelCombo_->addItem(TR("Caminho customizado", "Custom path"), "");
     int idx = modelCombo_->findData(current);
     if (idx < 0 && !current.isEmpty()) {
         modelPathEdit_->setText(current);
@@ -953,7 +1001,8 @@ void MainWindow::dropEvent(QDropEvent* event)
     if (fi.isDir()) {
         folderEdit_->setText(fi.absoluteFilePath());
         logEdit_->appendPlainText(
-            "[INFO] Pasta de lote: " + fi.absoluteFilePath());
+            "[INFO] " + TR("Pasta de lote: ", "Batch folder: ")
+            + fi.absoluteFilePath());
         event->acceptProposedAction();
         return;
     }
@@ -987,16 +1036,17 @@ void MainWindow::processBatch() {
     if (batchRunning_) {
         batchCancelRequested_ = true;
         btnProcessBatch_->setEnabled(false);
-        logEdit_->appendPlainText(
-            "[BATCH] Cancelamento solicitado; a terminar a imagem "
-            "em curso...");
+        logEdit_->appendPlainText("[BATCH] " + TR(
+            "Cancelamento solicitado; a terminar a imagem em curso...",
+            "Cancellation requested; finishing the current image..."));
         return;
     }
     if (removeWatcher_.isRunning() || batchWatcher_.isRunning()) return;
 
     if (folderEdit_->text().isEmpty()) {
-        QMessageBox::warning(this, "Aviso",
-            "Selecione uma pasta primeiro.");
+        QMessageBox::warning(this, TR("Aviso", "Warning"),
+            TR("Selecione uma pasta primeiro.",
+               "Select a folder first."));
         return;
     }
     batchFolder_ = folderEdit_->text();
@@ -1007,31 +1057,33 @@ void MainWindow::processBatch() {
     batchPlan_ = BatchPlan::build(
         QDir(batchFolder_), QDir(batchOutputDir_));
     if (batchPlan_.isEmpty()) {
-        QMessageBox::warning(this, "Aviso",
-            "Nenhuma imagem encontrada na pasta.");
+        QMessageBox::warning(this, TR("Aviso", "Warning"),
+            TR("Nenhuma imagem encontrada na pasta.",
+               "No images found in the folder."));
         return;
     }
 
     QDir outDir(batchOutputDir_);
     if (!outDir.exists() && !outDir.mkpath(".")) {
-        QMessageBox::critical(this, "Erro",
-            "Nao foi possivel criar diretorio de saida:\n"
-            + batchOutputDir_);
+        QMessageBox::critical(this, TR("Erro", "Error"),
+            TR("Nao foi possivel criar diretorio de saida:\n",
+               "Could not create output directory:\n")
+                + batchOutputDir_);
         return;
     }
 
     setUiBusy(true);
     // O botao continua ativo, agora como Cancelar.
     btnProcessBatch_->setEnabled(true);
-    btnProcessBatch_->setText("Cancelar lote");
+    btnProcessBatch_->setText(TR("Cancelar lote", "Cancel batch"));
     progressBar_->setRange(0, batchPlan_.size());
     progressBar_->setValue(0);
     progressBar_->setVisible(true);
     logEdit_->clear();
     logEdit_->appendPlainText(
-        QString("[BATCH] Processando %1 arquivo(s) "
-                "-> %2")
-            .arg(batchPlan_.size())
+        QString("[BATCH] %1 -> %2")
+            .arg(TR("Processando %1 arquivo(s)",
+                    "Processing %1 file(s)").arg(batchPlan_.size()))
             .arg(batchOutputDir_));
 
     batchIndex_ = 0;
@@ -1060,25 +1112,35 @@ void MainWindow::processBatchStep() {
         QString("[BATCH] %1/%2: %3")
             .arg(batchIndex_ + 1).arg(batchPlan_.size()).arg(file));
 
+    // Mensagens de erro traduzidas na GUI antes da thread (I18n usa
+    // QSettings, que nao deve ser lido fora da thread principal).
+    const QString errLoad = TR("Falha ao carregar a imagem",
+                               "Failed to load the image");
+    const QString errSave = TR("Falha ao salvar o PNG",
+                               "Failed to save the PNG");
+    const QString errModel = TR("modelo indisponivel",
+                                "model unavailable");
+
     // Cada imagem corre na thread de trabalho; a GUI so recebe o
     // resultado via watcher e agenda o passo seguinte.
     batchWatcher_.setFuture(QtConcurrent::run(
         [cache = modelCache_, options = batchOptions_,
-         in = entry.inputPath, out = entry.outputPath]() -> QString {
+         in = entry.inputPath, out = entry.outputPath,
+         errLoad, errSave, errModel]() -> QString {
             try {
                 QImage img(in);
                 if (img.isNull())
-                    return "Falha ao carregar a imagem";
+                    return errLoad;
                 const std::shared_ptr<BackgroundRemover> r =
                     obtainRemover(cache, options.modelPath);
-                if (!r) return "modelo indisponivel";
+                if (!r) return errModel;
                 const QImage processed = ImagePostProcessor::apply(
                     r->removeBackground(img), options);
                 if (!processed.save(out, "PNG"))
-                    return "Falha ao salvar o PNG";
+                    return errSave;
                 return QString();
             } catch (const Ort::Exception& e) {
-                return QString("Erro ONNX: %1").arg(e.what());
+                return QString("ONNX: %1").arg(e.what());
             } catch (const std::exception& e) {
                 return QString::fromUtf8(e.what());
             }
@@ -1111,9 +1173,11 @@ void MainWindow::finishBatch()
     progressBar_->setValue(batchPlan_.size());
     logEdit_->appendPlainText(
         QString("[BATCH] %1: %2 OK, %3 erro(s).")
-            .arg(batchCancelRequested_ ? "Cancelado" : "Concluido")
+            .arg(batchCancelRequested_
+                     ? TR("Cancelado", "Cancelled")
+                     : TR("Concluido", "Completed"))
             .arg(batchOk_).arg(batchErrors_));
-    btnProcessBatch_->setText("Processar lote");
+    btnProcessBatch_->setText(TR("Processar lote", "Process batch"));
     setUiBusy(false);
     batchCancelRequested_ = false;
 }

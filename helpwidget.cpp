@@ -1,4 +1,5 @@
 #include "helpwidget.h"
+#include "i18n.h"
 #include <QApplication>
 #include <QPalette>
 
@@ -102,10 +103,14 @@ void HelpWidget::rebuildHtml()
         "<table width=\"100%\" cellpadding=\"12\" cellspacing=\"0\">"
         "<tr><td bgcolor=\"")
         .arg(version) + green + QStringLiteral(
-        "\"><b><span style=\"font-size:14px; color:%1\">"
-        "\U0001F512 100%% local e privado \u2014 as suas imagens nunca "
-        "saem do computador.</span></b></td></tr></table><br>")
-        .arg(onGreen);
+        "\"><b><span style=\"font-size:14px; color:%1\">")
+        .arg(onGreen)
+        + TR(
+        "\U0001F512 100% local e privado \u2014 as suas imagens nunca "
+        "saem do computador.",
+        "\U0001F512 100% local and private \u2014 your images never "
+        "leave your computer.")
+        + QStringLiteral("</span></b></td></tr></table><br>");
 
     html += QStringLiteral(
         "<table width=\"100%\" cellpadding=\"12\" cellspacing=\"8\">"
@@ -113,65 +118,95 @@ void HelpWidget::rebuildHtml()
         "<tr>%3%4</tr>"
         "</table><br>")
         .arg(
-            cardCell("\U0001F5BC", "1.", "Abra a imagem",
-                     "Ctrl+O ou arraste para a janela"),
-            cardCell("\u2702", "2.", "Remova o fundo",
-                     "um clique no bot\u00e3o verde"),
-            cardCell("\U0001F58C", "3.", "Ajuste detalhes",
-                     "pincel Restaurar/Apagar + Ctrl+Z"),
-            cardCell("\U0001F4BE", "4.", "Salve o PNG",
-                     "fundo transparente ou colorido"));
+            cardCell("\U0001F5BC", "1.",
+                     TR("Abra a imagem", "Open the image"),
+                     TR("Ctrl+O ou arraste para a janela",
+                        "Ctrl+O or drag it to the window")),
+            cardCell("\u2702", "2.",
+                     TR("Remova o fundo", "Remove the background"),
+                     TR("um clique no bot\u00e3o verde",
+                        "one click on the green button")),
+            cardCell("\U0001F58C", "3.",
+                     TR("Ajuste detalhes", "Touch up details"),
+                     TR("pincel Restaurar/Apagar + Ctrl+Z",
+                        "Restore/Erase brush + Ctrl+Z")),
+            cardCell("\U0001F4BE", "4.",
+                     TR("Salve o PNG", "Save the PNG"),
+                     TR("fundo transparente ou colorido",
+                        "transparent or colored background")));
 
-    html += QStringLiteral(
-        "<h3>\u2328 Atalhos</h3>"
+    html += QStringLiteral("<h3>\u2328 %1</h3>"
         "<table cellpadding=\"7\" cellspacing=\"6\">"
-        "%1%2%3%4"
+        "%2%3%4%5"
         "</table><br>")
+        .arg(TR("Atalhos", "Shortcuts"))
         .arg(
-            shortcutRow("Ctrl+O", "abrir imagem",
-                        "Ctrl+S", "salvar PNG"),
-            shortcutRow("Ctrl+Z / Y", "desfazer / refazer",
-                        "Ctrl + roda", "zoom no cursor"),
-            shortcutRow("Ctrl + / \u2212", "zoom",
-                        "Ctrl+0", "ajustar \u00e0 janela"),
-            shortcutRow("Ctrl+Q", "sair", "", ""));
+            shortcutRow("Ctrl+O",
+                        TR("abrir imagem", "open image"),
+                        "Ctrl+S", TR("salvar PNG", "save PNG")),
+            shortcutRow("Ctrl+Z / Y",
+                        TR("desfazer / refazer", "undo / redo"),
+                        "Ctrl + " + TR("roda", "wheel"),
+                        TR("zoom no cursor", "zoom at cursor")),
+            shortcutRow("Ctrl + / \u2212", TR("zoom", "zoom"),
+                        "Ctrl+0",
+                        TR("ajustar \u00e0 janela", "fit to window")),
+            shortcutRow("Ctrl+Q", TR("sair", "quit"), "", ""));
 
     html += QString(
                 "<table width=\"100%\" cellpadding=\"12\" cellspacing=\"8\">"
                 "<tr>"
                 "<td width=\"50%\" bgcolor=\"%1\">"
-                "<b>\u2b07 Modelos melhores</b><br>"
-                "<span style=\"color:%2\">Silueta, ISNet, U\u00b2-Net na "
-                "aba <b>Modelos</b> \u2014 um clique e ficam instalados "
-                "para GUI e CLI.</span></td>"
+                "<b>\u2b07 %2</b><br>"
+                "<span style=\"color:%3\">%4</span></td>"
                 "<td width=\"50%\" bgcolor=\"%1\">"
-                "<b>\U0001F4E6 Lote de pastas</b><br>"
-                "<span style=\"color:%2\">Barra inferior processa pastas "
-                "inteiras (com cancelar). CLI: "
-                "<code>bg_remover_cli entrada saida modelo.onnx</code>"
+                "<b>\U0001F4E6 %5</b><br>"
+                "<span style=\"color:%3\">%6"
                 "</span></td>"
                 "</tr></table><br>")
-                .arg(card, muted);
+                .arg(card)
+                .arg(TR("Modelos melhores", "Better models"))
+                .arg(muted)
+                .arg(TR(
+                    "Silueta, ISNet, U\u00b2-Net na aba <b>Modelos</b> "
+                    "\u2014 um clique e ficam instalados para GUI e CLI.",
+                    "Silueta, ISNet, U\u00b2-Net in the <b>Models</b> "
+                    "tab \u2014 one click installs them for both the "
+                    "GUI and the CLI."))
+                .arg(TR("Lote de pastas", "Folder batch"))
+                .arg(TR(
+                    "Barra inferior processa pastas inteiras (com "
+                    "cancelar). CLI: "
+                    "<code>bg_remover_cli entrada saida modelo.onnx</code>",
+                    "The bottom bar processes entire folders (with "
+                    "cancel). CLI: "
+                    "<code>bg_remover_cli input output model.onnx</code>"));
 
     html += QString(
                 "<table cellpadding=\"10\" cellspacing=\"8\"><tr>"
                 "<td bgcolor=\"%1\"><a href=\"%2\" "
                 "style=\"color:%3; text-decoration:none\">"
-                "<b>\u2b50 Reposit\u00f3rio no GitHub</b></a></td>"
-                "<td bgcolor=\"%4\"><a href=\"%5\" "
+                "<b>\u2b50 %4</b></a></td>"
+                "<td bgcolor=\"%5\"><a href=\"%6\" "
                 "style=\"color:%3; text-decoration:none\">"
-                "<b>\U0001F41E Reportar problema</b></a></td>"
-                "<td><span style=\"color:%6\">por "
-                "<a href=\"%7\" style=\"color:%6\">Mariel Carlos "
+                "<b>\U0001F41E %7</b></a></td>"
+                "<td><span style=\"color:%8\">%9 "
+                "<a href=\"%10\" style=\"color:%8\">Mariel Carlos "
                 "Frias</a></span></td>"
                 "</tr></table>"
-                "<p><span style=\"color:%6; font-size:small\">"
-                "U\u00b2-Net (Xuebin Qin et al.) \u00b7 ONNX do "
-                "<a href=\"https://github.com/danielgatis/rembg\" "
-                "style=\"color:%6\">rembg</a> \u00b7 "
+                "<p><span style=\"color:%8; font-size:small\">"
+                "%11 <a href=\"https://github.com/danielgatis/rembg\" "
+                "style=\"color:%8\">rembg</a> \u00b7 "
                 "ONNX Runtime</span></p>")
-                .arg(green, repo, onGreen, greenDark, issues,
-                     muted, profile);
+                .arg(green, repo, onGreen)
+                .arg(TR("Reposit\u00f3rio no GitHub", "GitHub repository"))
+                .arg(greenDark, issues)
+                .arg(TR("Reportar problema", "Report an issue"))
+                .arg(muted)
+                .arg(TR("por", "by"))
+                .arg(TR(
+                    "U\u00b2-Net (Xuebin Qin et al.) \u00b7 ONNX do ",
+                    "U\u00b2-Net (Xuebin Qin et al.) \u00b7 ONNX files by "));
 
     setHtml(html);
 }

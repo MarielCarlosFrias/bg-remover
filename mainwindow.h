@@ -113,6 +113,7 @@ private:
     QLineEdit* outputDirEdit_;
     QPushButton* btnOpen_;
     QPushButton* btnThemeToggle_;
+    QComboBox* langCombo_;
     QPushButton* btnRemove_;
     QPushButton* btnSave_;
     QPushButton* btnLoadModel_;

@@ -1,6 +1,7 @@
 #include "batchprocessor.h"
 #include "backgroundremover.h"
 #include "batchplan.h"
+#include "i18n.h"
 #include "imagepostprocessor.h"
 #include <QDir>
 #include <QFileInfo>
@@ -20,14 +21,16 @@ BatchProcessor::Result BatchProcessor::processDirectory(
     QDir dir(inputDir);
 
     if (!dir.exists()) {
-        std::cerr << "Diretorio de entrada nao existe: "
+        std::cerr << I18n::tr("Diretorio de entrada nao existe: ",
+                              "Input directory does not exist: ").toStdString()
                   << inputDir.toStdString() << std::endl;
         return result;
     }
 
     QDir outDir(outputDir);
     if (!outDir.exists() && !outDir.mkpath(".")) {
-        std::cerr << "Nao foi possivel criar diretorio de saida: "
+        std::cerr << I18n::tr("Nao foi possivel criar diretorio de saida: ",
+                              "Could not create output directory: ").toStdString()
                   << outputDir.toStdString() << std::endl;
         return result;
     }
@@ -39,14 +42,16 @@ BatchProcessor::Result BatchProcessor::processDirectory(
     const QList<BatchPlan::Entry> plan =
         BatchPlan::build(dir, outDir);
     if (plan.isEmpty()) {
-        std::cout << "Nenhuma imagem encontrada em: "
+        std::cout << I18n::tr("Nenhuma imagem encontrada em: ",
+                              "No images found in: ").toStdString()
                   << inputDir.toStdString() << std::endl;
         return result;
     }
 
     result.total = plan.size();
-    std::cout << "Processando " << plan.size()
-              << " imagens..." << std::endl;
+    std::cout << I18n::tr("Processando ", "Processing ").toStdString()
+              << plan.size()
+              << I18n::tr(" imagens...", " images...").toStdString() << std::endl;
 
     try {
         BackgroundRemover remover(options_.modelPath);
