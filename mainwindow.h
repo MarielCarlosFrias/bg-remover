@@ -46,6 +46,17 @@ public:
     explicit MainWindow(QWidget* parent = nullptr,
                         const QString& modelPath = "");
 
+public slots:
+    // Abre a imagem indicada (tambem usada por drag & drop e testes).
+    void openPath(const QString& path);
+    // Remove o fundo da imagem carregada; o resultado chega pelo
+    // sinal jobFinished().
+    void removeBackground();
+
+signals:
+    // Emitido no fim do processamento (sucesso ou erro) e do lote.
+    void jobFinished();
+
 protected:
     void resizeEvent(QResizeEvent* event) override;
     void closeEvent(QCloseEvent* event) override;
@@ -55,7 +66,6 @@ protected:
 
 private slots:
     void openImage();
-    void removeBackground();
     void onRemoveFinished();
     void saveResult();
     void loadModel();
@@ -79,7 +89,6 @@ private:
     void updatePreviewZoom();
     void setOriginal(const QImage& img);
     void setResult(const QImage& img);
-    void openPath(const QString& path);
     void setUiBusy(bool busy);
     void finishBatch();
     void resetModel();

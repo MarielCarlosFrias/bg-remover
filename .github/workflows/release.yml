@@ -25,6 +25,50 @@ jobs:
           name: linux-deb
           path: dist/*.deb
 
+  linux-appimage:
+    # Ubuntu 22.04: glibc mais antiga = AppImage compativel com mais distros.
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build qt6-base-dev
+      - name: Download bundled model
+        run: |
+          curl -fsSL -o u2netp.onnx https://github.com/danielgatis/rembg/releases/download/v0.0.0/u2netp.onnx
+          echo '309c8469258dda742793dce0ebea8e6dd393174f89934733ecc8b14c76f4ddd8  u2netp.onnx' | sha256sum --check
+      - name: Configure and install into AppDir
+        run: |
+          cmake -S . -B build -G Ninja -DINSTALLED=ON \
+            -DCMAKE_INSTALL_PREFIX=/usr \
+            -DBG_REMOVER_FETCH_ONNX_RUNTIME=ON \
+            -DBG_REMOVER_BUNDLE_MODELS=ON
+          cmake --build build --parallel
+          DESTDIR=appdir cmake --install build
+      - name: Build AppImage
+        run: |
+          wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+          wget -q https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
+          chmod +x linuxdeploy*.AppImage
+          mv linuxdeploy*.AppImage /tmp/
+          export APPIMAGE_EXTRACT_AND_RUN=1
+          export QMAKE=/usr/bin/qmake6
+          export VERSION="${GITHUB_REF_NAME#v}"
+          export UPDATE_DESKTOP_FILE=1
+          /tmp/linuxdeploy-x86_64.AppImage --appdir appdir \
+            -e appdir/usr/bin/bg_remover_gui \
+            -e appdir/usr/bin/bg_remover_cli \
+            -i appdir/usr/share/icons/hicolor/scalable/apps/bg-remover.svg \
+            -d appdir/usr/share/applications/bg-remover.desktop \
+            --plugin qt --output appimage
+          mv *.AppImage "bg-remover_${VERSION}_amd64.AppImage"
+          ls -la bg-remover_*.AppImage
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-appimage
+          path: bg-remover_*_amd64.AppImage
+
   windows-zip:
     runs-on: windows-2022
     steps:
@@ -55,7 +99,7 @@ jobs:
           path: dist/*.zip
 
   publish:
-    needs: [linux-deb, windows-zip]
+    needs: [linux-deb, linux-appimage, windows-zip]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4

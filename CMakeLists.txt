@@ -124,7 +124,7 @@ target_compile_definitions(bg_remover_gui PRIVATE
     BG_REMOVER_VERSION="${PROJECT_VERSION}")
 if(NOT WIN32)
     set_target_properties(bg_remover_gui PROPERTIES
-        INSTALL_RPATH "/usr/lib/bg-remover"
+        INSTALL_RPATH "\$ORIGIN/../lib/bg-remover"
         BUILD_RPATH "${ONNX_DIR}/lib"
     )
 endif()
@@ -145,7 +145,7 @@ target_link_libraries(bg_remover_cli
     Qt6::Core Qt6::Gui onnxruntime)
 if(NOT WIN32)
     set_target_properties(bg_remover_cli PROPERTIES
-        INSTALL_RPATH "/usr/lib/bg-remover"
+        INSTALL_RPATH "\$ORIGIN/../lib/bg-remover"
         BUILD_RPATH "${ONNX_DIR}/lib"
     )
 endif()

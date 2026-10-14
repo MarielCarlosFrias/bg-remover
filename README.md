@@ -4,7 +4,7 @@ Remova o fundo de imagens no seu computador — sem contas, créditos ou envio d
 
 O BG Remover é um aplicativo desktop em C++ e Qt que usa U²-Net através do ONNX Runtime para criar PNGs com transparência, processar pastas inteiras e corrigir detalhes manualmente com pincel.
 
-![Interface do BG Remover](docs/images/bg-remover-interface.png)
+![Editor do BG Remover: original à esquerda, resultado com fundo removido à direita](docs/images/bg-remover-editor.png)
 
 ## Download pronto (sem compilar)
 
@@ -99,6 +99,8 @@ cmake --build build --config Release --parallel
 
 ### Gerenciar modelos (aba Modelos)
 
+![Aba Modelos com o catálogo para download](docs/images/bg-remover-modelos.png)
+
 Na aba **Modelos**, no topo da janela, escolha um modelo do catálogo e clique em **Descarregar**. Os arquivos ficam no diretório de dados do aplicativo (`~/.local/share/bg-remover/models` no Linux) e passam a aparecer no seletor de modelos da aba Editor, além de serem encontrados automaticamente pelo CLI. Modelos maiores (ISNet, U²-Net completo) geram recortes melhores em cabelo e contornos finos; o U²-Netp continua sendo o padrão leve. Os downloads usam HTTPS e os modelos com hash conhecido têm verificação SHA256; qualquer modelo pode ser removido do disco na mesma aba.
 
 ### Processamento em lote
@@ -106,6 +108,8 @@ Na aba **Modelos**, no topo da janela, escolha um modelo do catálogo e clique e
 Na barra inferior, escolha a pasta de entrada e a pasta de saída, depois clique em **Processar lote** (o botão vira **Cancelar lote** durante a execução). As imagens geradas recebem o sufixo `_rembg`; se já existir um arquivo com esse nome, o aplicativo cria uma variação numerada em vez de sobrescrevê-lo.
 
 ### Linha de comando
+
+![Aba Ajuda com resumo, atalhos e links](docs/images/bg-remover-ajuda.png)
 
 ```bash
 ./build/bg_remover_cli <pasta_entrada> [pasta_saida] [modelo.onnx]

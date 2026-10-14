@@ -730,6 +730,10 @@ void MainWindow::onRemoveFinished()
     const SingleResult res = removeWatcher_.result();
     if (!res.error.isEmpty()) {
         logEdit_->appendPlainText("[ERRO] " + res.error);
+        // Sinal antes do dialogo: consumidores automaticos (ex.: a
+        // ferramenta de screenshots em modo offscreen) nao ficam
+        // bloqueados por uma caixa modal.
+        emit jobFinished();
         QMessageBox::critical(this, "Erro",
             "Falha ao remover o fundo:\n" + res.error);
         return;
@@ -738,6 +742,7 @@ void MainWindow::onRemoveFinished()
     maskEditCanvas_->setImage(resultImage_, currentBackgroundColor());
     setResult(resultImage_);
     logEdit_->appendPlainText("[OK] Fundo removido.");
+    emit jobFinished();
 }
 
 void MainWindow::saveResult() {
