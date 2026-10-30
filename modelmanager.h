@@ -28,7 +28,7 @@ public:
 signals:
     // Emitido quando um modelo e instalado ou removido; a MainWindow
     // atualiza a lista de modelos disponiveis.
-    void modelInstalled(const QString& fileName);
+    void modelsChanged(const QString& fileName);
 
 private slots:
     void refreshList();
@@ -69,6 +69,7 @@ private:
     QFile outFile_;
     QString pendingFileName_;   // nome final do modelo em descarga
     QString pendingSha256Hex_;  // hash esperado (vazio = sem verificacao)
+    qint64 pendingSizeBytes_ = 0; // tamanho esperado (0 = sem verificacao)
 };
 
 #endif

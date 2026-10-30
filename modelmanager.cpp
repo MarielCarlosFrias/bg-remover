@@ -4,9 +4,11 @@
 
 #include <QCryptographicHash>
 #include <QDir>
+#include <QFileInfo>
 #include <QHBoxLayout>
 #include <QHeaderView>
 #include <QLabel>
+#include <QMessageBox>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
@@ -85,7 +87,8 @@ ModelManagerWidget::ModelManagerWidget(QWidget* parent)
     auto* buttons = new QHBoxLayout;
     buttons->addWidget(btnDownload_);
     buttons->addWidget(btnCancel_);
-    buttons->addWidget(btnRefresh_ = new QPushButton("Atualizar"));
+    buttons->addWidget(btnRefresh_ = new QPushButton(
+        TR("Atualizar", "Refresh")));
     buttons->addStretch();
     buttons->addWidget(btnDelete_);
     layout->addLayout(buttons);
@@ -243,6 +246,7 @@ void ModelManagerWidget::downloadSelected()
     QDir().mkpath(ModelPathResolver::userModelsDir());
     pendingFileName_ = e.fileName;
     pendingSha256Hex_ = e.sha256Hex;
+    pendingSizeBytes_ = e.sizeBytes;
 
     outFile_.setFileName(ModelPathResolver::userModelsDir()
                          + "/" + e.fileName + ".part");
@@ -346,18 +350,33 @@ void ModelManagerWidget::onDownloadFinished()
         return;
     }
 
+    // Sem SHA256 publicado, o tamanho exato e a unica verificacao
+    // disponivel (os valores do catalogo vem dos assets do rembg).
+    const qint64 actualSize = QFileInfo(partPath).size();
+    if (pendingSizeBytes_ > 0 && actualSize != pendingSizeBytes_) {
+        QFile::remove(partPath);
+        statusLabel_->setText(
+            TR("Erro: tamanho inesperado (%1 bytes, esperado %2). "
+               "Descarga rejeitada e apagada.",
+               "Error: unexpected size (%1 bytes, expected %2). "
+               "Download rejected and deleted.")
+                .arg(actualSize).arg(pendingSizeBytes_));
+        refreshList();
+        return;
+    }
+
     QFile::remove(finalPath);
     if (QFile::rename(partPath, finalPath)) {
         statusLabel_->setText(TR("Modelo instalado: ", "Model installed: ")
                               + finalPath);
         refreshList();
-        emit modelInstalled(fileName);
+        emit modelsChanged(fileName);
     } else {
         statusLabel_->setText(
             TR("Erro: não foi possível finalizar ",
                "Error: could not finalize ") + finalPath);
+        refreshList();
     }
-    refreshList();
 }
 
 void ModelManagerWidget::cancelDownload()
@@ -369,12 +388,21 @@ void ModelManagerWidget::deleteSelected()
 {
     const CatalogEntry e = selectedEntry();
     if (e.fileName.isEmpty()) return;
+
+    const auto answer = QMessageBox::question(
+        this, TR("Apagar modelo", "Delete model"),
+        TR("Apagar \"%1\" do disco? Esta acao nao pode ser desfeita.",
+           "Delete \"%1\" from disk? This cannot be undone.")
+            .arg(e.fileName),
+        QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+    if (answer != QMessageBox::Yes) return;
+
     const QString path = ModelPathResolver::userModelsDir()
         + "/" + e.fileName;
     if (QFile::remove(path)) {
         statusLabel_->setText(TR("Removido: ", "Removed: ") + path);
         refreshList();
-        emit modelInstalled(e.fileName);
+        emit modelsChanged(e.fileName);
     } else {
         statusLabel_->setText(
             TR("Não foi possível remover: ", "Could not remove: ") + path);
