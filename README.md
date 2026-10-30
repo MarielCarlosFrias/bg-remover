@@ -12,6 +12,7 @@ A página de [**Releases**](https://github.com/MarielCarlosFrias/bg-remover/rele
 
 - **Windows x64:** ZIP portátil — extraia e execute `bg_remover_gui.exe` (Qt, ONNX Runtime e o modelo leve já incluídos).
 - **Debian/Ubuntu:** pacote `.deb` (depende de `libqt6widgets6`).
+- **Qualquer Linux:** `.AppImage` — `chmod +x bg-remover_*_amd64.AppImage` e execute; não requer instalação.
 
 ## Por que usar?
 
@@ -161,6 +162,8 @@ Os modelos, o runtime extraído, os diretórios de build e os resultados locais 
 
 - U²-Netp privilegia velocidade; cabelo e transparências muito finas podem precisar de correção manual. U²-Net oferece melhor segmentação, mas é substancialmente maior.
 - O ZIP do Windows é gerado e verificado pelo CI (DLLs e plugins presentes), mas ainda **não foi testado numa instalação limpa do Windows** — se encontrar problemas, abra uma [issue](https://github.com/MarielCarlosFrias/bg-remover/issues).
+- O `.AppImage` é gerado pelo CI, mas ainda **não foi validado numa execução real** — se encontrar problemas, abra uma issue.
+- Modelos de 1024×1024 (ISNet) são mais lentos em CPU: a máscara tem 16× mais pixels de entrada que a U²-Netp.
 
 ## Créditos
 
