@@ -13,9 +13,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: sudo apt-get update && sudo apt-get install -y cmake ninja-build qt6-base-dev
-      - name: Download bundled model
+      - name: Prepare ONNX Runtime and model (com retry)
         run: |
-          curl -fsSL -o u2netp.onnx https://github.com/danielgatis/rembg/releases/download/v0.0.0/u2netp.onnx
+          # O file(DOWNLOAD) do CMake nao repete tentativas, e o GitHub ja
+          # devolveu HTTP/2 PROTOCOL_ERROR neste projeto. Descarregamos
+          # aqui, com retry, para o caminho default que o CMakeLists ja
+          # procura (evita a descarga interna do CMake).
+          curl -fL --http1.1 --retry 5 --retry-delay 3 --retry-all-errors \
+            -o /tmp/ort.tgz \
+            https://github.com/microsoft/onnxruntime/releases/download/v1.19.0/onnxruntime-linux-x64-1.19.0.tgz
+          echo '8627cae49b51544ed15bb70c8ecf25b187f22a301c99c1ced5f4f3af5c36b44c  /tmp/ort.tgz' | sha256sum --check
+          tar -xzf /tmp/ort.tgz
+          curl -fL --http1.1 --retry 5 --retry-delay 3 --retry-all-errors \
+            -o u2netp.onnx \
+            https://github.com/danielgatis/rembg/releases/download/v0.0.0/u2netp.onnx
           echo '309c8469258dda742793dce0ebea8e6dd393174f89934733ecc8b14c76f4ddd8  u2netp.onnx' | sha256sum --check
       - run: cmake -S . -B build -G Ninja -DINSTALLED=ON -DBG_REMOVER_FETCH_ONNX_RUNTIME=ON -DBG_REMOVER_BUNDLE_MODELS=ON
       - run: cmake --build build --parallel && ctest --test-dir build --output-on-failure
@@ -34,9 +45,20 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y cmake ninja-build qt6-base-dev
-      - name: Download bundled model
+      - name: Prepare ONNX Runtime and model (com retry)
         run: |
-          curl -fsSL -o u2netp.onnx https://github.com/danielgatis/rembg/releases/download/v0.0.0/u2netp.onnx
+          # O file(DOWNLOAD) do CMake nao repete tentativas, e o GitHub ja
+          # devolveu HTTP/2 PROTOCOL_ERROR neste projeto. Descarregamos
+          # aqui, com retry, para o caminho default que o CMakeLists ja
+          # procura (evita a descarga interna do CMake).
+          curl -fL --http1.1 --retry 5 --retry-delay 3 --retry-all-errors \
+            -o /tmp/ort.tgz \
+            https://github.com/microsoft/onnxruntime/releases/download/v1.19.0/onnxruntime-linux-x64-1.19.0.tgz
+          echo '8627cae49b51544ed15bb70c8ecf25b187f22a301c99c1ced5f4f3af5c36b44c  /tmp/ort.tgz' | sha256sum --check
+          tar -xzf /tmp/ort.tgz
+          curl -fL --http1.1 --retry 5 --retry-delay 3 --retry-all-errors \
+            -o u2netp.onnx \
+            https://github.com/danielgatis/rembg/releases/download/v0.0.0/u2netp.onnx
           echo '309c8469258dda742793dce0ebea8e6dd393174f89934733ecc8b14c76f4ddd8  u2netp.onnx' | sha256sum --check
       - name: Configure and install into AppDir
         run: |
@@ -100,6 +122,10 @@ jobs:
 
   publish:
     needs: [linux-deb, linux-appimage, windows-zip]
+    # Publica o que existir mesmo que um job falhe: uma falha isolada
+    # (ex.: AppImage) nao deve custar a release inteira. Foi o que
+    # aconteceu na v1.0.1, com DEB e ZIP prontos e nunca publicados.
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
