@@ -15,7 +15,7 @@ namespace I18n {
 
 enum class Lang { PtBr, En };
 
-inline Lang lang()
+inline Lang detectLang()
 {
     const QString env = qEnvironmentVariable("BG_REMOVER_LANG").toLower();
     if (env == "en") return Lang::En;
@@ -28,6 +28,14 @@ inline Lang lang()
 
     return QLocale::system().language() == QLocale::Portuguese
                ? Lang::PtBr : Lang::En;
+}
+
+inline Lang lang()
+{
+    // O idioma so muda ao reiniciar (a UI avisa disso), por isso
+    // deteta-se uma unica vez em vez de ler QSettings em cada TR().
+    static const Lang cached = detectLang();
+    return cached;
 }
 
 inline QString tr(const char* ptBr, const char* en)
