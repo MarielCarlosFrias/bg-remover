@@ -31,6 +31,16 @@ int main(int argc, char* argv[]) {
         // Testar carregamento do modelo
         BackgroundRemover remover(modelPath);
 
+        // O tamanho de entrada e detetado a partir do modelo
+        // (320 na U2-Net/Silueta, 1024 na ISNet).
+        const int detected = remover.inputSize();
+        std::cout << "Input size detetado: " << detected << std::endl;
+        if (detected <= 0 || detected > 4096) {
+            std::cerr << "FAIL: Tamanho de entrada invalido: "
+                      << detected << std::endl;
+            return 1;
+        }
+
         // Testar inferência
         QImage result = remover.removeBackground(img);
 

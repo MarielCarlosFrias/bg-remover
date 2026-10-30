@@ -1,5 +1,6 @@
 #include "backgroundremover.h"
-#include <iostream>
+#include <QDebug>
+#include <QFileInfo>
 #include <cmath>
 #include <algorithm>
 #include <array>
@@ -11,7 +12,7 @@ static constexpr float MEAN[3] = {0.485f, 0.456f, 0.406f};
 static constexpr float STD[3]  = {0.229f, 0.224f, 0.225f};
 
 BackgroundRemover::BackgroundRemover(const QString& modelPath)
-    : env_(ORT_LOGGING_LEVEL_WARNING, "u2netp"),
+    : env_(ORT_LOGGING_LEVEL_WARNING, "bg-remover"),
       session_(nullptr)
 {
     Ort::SessionOptions sess_opts;
@@ -37,10 +38,46 @@ BackgroundRemover::BackgroundRemover(const QString& modelPath)
     input_name_  = std::string(in_ptr.get());
     output_name_ = std::string(out_ptr.get());
 
-    std::cout << "[BackgroundRemover] Modelo carregado: "
-              << modelPath.toStdString()
-              << "\n  Input: " << input_name_
-              << "\n  Output: " << output_name_ << std::endl;
+    input_size_ = detectInputSize(modelPath);
+
+    const QString sizeStr = QString::number(input_size_)
+        + QStringLiteral("x") + QString::number(input_size_);
+    qInfo().noquote() << QStringLiteral(
+        "[BackgroundRemover] Modelo carregado: %1\n  Input: %2 (%3)\n  Output: %4")
+        .arg(modelPath,
+             QString::fromStdString(input_name_),
+             sizeStr,
+             QString::fromStdString(output_name_));
+}
+
+// U2-Net/Silueta trabalham a 320x320; a geracao ISNet a 1024x1024.
+// O shape declarado pelo modelo e a fonte de verdade; modelos com
+// shape dinamico (-1) caem no fallback pelo nome do ficheiro.
+int BackgroundRemover::detectInputSize(const QString& modelPath) const
+{
+    try {
+        const std::vector<int64_t> shape =
+            session_.GetInputTypeInfo(0)
+                .GetTensorTypeAndShapeInfo()
+                .GetShape();
+        if (shape.size() == 4 && shape[2] > 0 && shape[3] > 0) {
+            if (shape[2] == shape[3]) {
+                return static_cast<int>(shape[2]);
+            }
+            qWarning() << "[BackgroundRemover] Entrada nao quadrada ("
+                       << shape[2] << "x" << shape[3]
+                       << "); a usar" << kDefaultInputSize;
+        }
+    } catch (const Ort::Exception& e) {
+        qWarning() << "[BackgroundRemover] Nao foi possivel ler o shape "
+                      "da entrada:" << e.what();
+    }
+
+    const QString name = QFileInfo(modelPath).fileName().toLower();
+    if (name.contains(QStringLiteral("isnet"))) {
+        return 1024;
+    }
+    return kDefaultInputSize;
 }
 
 QImage BackgroundRemover::removeBackground(const QImage& input) {
@@ -48,9 +85,10 @@ QImage BackgroundRemover::removeBackground(const QImage& input) {
         throw std::invalid_argument("A imagem de entrada e invalida");
     }
 
+    const int size = input_size_;
     std::vector<float> blob = buildInputBlob(input);
 
-    std::vector<int64_t> input_shape = {1, 3, INPUT_SIZE, INPUT_SIZE};
+    std::vector<int64_t> input_shape = {1, 3, size, size};
     Ort::MemoryInfo mem_info = Ort::MemoryInfo::CreateCpu(
         OrtArenaAllocator, OrtMemTypeDefault);
     Ort::Value input_tensor = Ort::Value::CreateTensor<float>(
@@ -70,10 +108,28 @@ QImage BackgroundRemover::removeBackground(const QImage& input) {
     }
 
     const auto tensorInfo = outputs[0].GetTensorTypeAndShapeInfo();
-    const size_t expectedMaskSize = static_cast<size_t>(INPUT_SIZE * INPUT_SIZE);
     if (tensorInfo.GetElementType()
-            != ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT
-        || tensorInfo.GetElementCount() != expectedMaskSize) {
+            != ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT) {
+        throw std::runtime_error(
+            "Mascara de saida incompativel: esperado tensor float, "
+            "recebido tipo "
+            + std::to_string(
+                  static_cast<int>(tensorInfo.GetElementType())));
+    }
+
+    // As dimensoes da mascara vem do proprio tensor de saida: nem todos
+    // os modelos devolvem uma mascara do tamanho da entrada.
+    int mask_w = size;
+    int mask_h = size;
+    const std::vector<int64_t> out_shape = tensorInfo.GetShape();
+    if (out_shape.size() == 4 && out_shape[2] > 0 && out_shape[3] > 0) {
+        mask_h = static_cast<int>(out_shape[2]);
+        mask_w = static_cast<int>(out_shape[3]);
+    }
+
+    const size_t expectedMaskSize =
+        static_cast<size_t>(mask_w) * static_cast<size_t>(mask_h);
+    if (tensorInfo.GetElementCount() != expectedMaskSize) {
         throw std::runtime_error(
             "Mascara de saida incompativel: esperado tensor float com "
             + std::to_string(expectedMaskSize) + " elementos, recebido "
@@ -83,7 +139,7 @@ QImage BackgroundRemover::removeBackground(const QImage& input) {
     const float* mask_ptr = outputs[0].GetTensorData<float>();
 
     QImage alpha = buildAlphaMask(
-        mask_ptr, input.width(), input.height());
+        mask_ptr, mask_w, mask_h, input.width(), input.height());
 
     return composite(input, alpha);
 }
@@ -91,25 +147,30 @@ QImage BackgroundRemover::removeBackground(const QImage& input) {
 std::vector<float> BackgroundRemover::buildInputBlob(
     const QImage& img) const
 {
+    const int size = input_size_;
     QImage rgb = img.convertToFormat(QImage::Format_RGB32);
     QImage resized = rgb.scaled(
-        INPUT_SIZE, INPUT_SIZE,
+        size, size,
         Qt::IgnoreAspectRatio,
         Qt::SmoothTransformation);
 
-    int plane = INPUT_SIZE * INPUT_SIZE;
-    std::vector<float> blob(1UL * 3 * plane);
+    const int plane = size * size;
+    std::vector<float> blob(static_cast<size_t>(3) * plane);
 
-    for (int y = 0; y < INPUT_SIZE; ++y) {
-        for (int x = 0; x < INPUT_SIZE; ++x) {
-            QRgb px = resized.pixel(x, y);
-            float r = qRed(px) / 255.0f;
-            float g = qGreen(px) / 255.0f;
-            float b = qBlue(px) / 255.0f;
+    // Acesso por scanline (Format_RGB32 garante QRgb alinhado) evita
+    // a chamada QImage::pixel() por pixel, que domina o custo.
+    for (int y = 0; y < size; ++y) {
+        const QRgb* row = reinterpret_cast<const QRgb*>(
+            resized.constScanLine(y));
+        for (int x = 0; x < size; ++x) {
+            const QRgb px = row[x];
+            const float r = qRed(px) / 255.0f;
+            const float g = qGreen(px) / 255.0f;
+            const float b = qBlue(px) / 255.0f;
 
-            int idx = y * INPUT_SIZE + x;
-            blob[0 * plane + idx] = (r - MEAN[0]) / STD[0];
-            blob[1 * plane + idx] = (g - MEAN[1]) / STD[1];
+            const int idx = y * size + x;
+            blob[idx]             = (r - MEAN[0]) / STD[0];
+            blob[plane + idx]     = (g - MEAN[1]) / STD[1];
             blob[2 * plane + idx] = (b - MEAN[2]) / STD[2];
         }
     }
@@ -117,19 +178,19 @@ std::vector<float> BackgroundRemover::buildInputBlob(
 }
 
 QImage BackgroundRemover::buildAlphaMask(
-    const float* mask, int orig_w, int orig_h) const
+    const float* mask, int mask_w, int mask_h,
+    int orig_w, int orig_h) const
 {
     // U2-Net/ISNet ja devolvem probabilidades 0..1 (sigmoid na ultima
     // camada). O clamp direto mantem as bordas fieis; a normalizacao
     // min-max anterior esticava o contraste e saturava o fundo quando
     // o objeto ocupava pouco da imagem.
-    QImage mask_img(INPUT_SIZE, INPUT_SIZE,
-                    QImage::Format_Grayscale8);
-    for (int y = 0; y < INPUT_SIZE; ++y) {
+    QImage mask_img(mask_w, mask_h, QImage::Format_Grayscale8);
+    for (int y = 0; y < mask_h; ++y) {
         quint8* row = mask_img.scanLine(y);
-        for (int x = 0; x < INPUT_SIZE; ++x) {
-            const float v = std::clamp(
-                mask[y * INPUT_SIZE + x], 0.0f, 1.0f);
+        const float* src = mask + static_cast<size_t>(y) * mask_w;
+        for (int x = 0; x < mask_w; ++x) {
+            const float v = std::clamp(src[x], 0.0f, 1.0f);
             row[x] = static_cast<quint8>(v * 255.0f + 0.5f);
         }
     }
