@@ -114,12 +114,6 @@ void MaskEditCanvas::clearEdits()
     update();
 }
 
-bool MaskEditCanvas::hasEdits() const
-{
-    return !editBuffer_.isNull()
-           && editBuffer_ != originalRgba_;
-}
-
 float MaskEditCanvas::scaleFactor() const
 {
     if (editBuffer_.isNull()

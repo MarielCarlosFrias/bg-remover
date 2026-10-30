@@ -7,13 +7,21 @@
 #include "i18n.h"
 #include "modelpathresolver.h"
 
+namespace {
+#ifdef BG_REMOVER_VERSION
+const QString kVersion = QStringLiteral(BG_REMOVER_VERSION);
+#else
+const QString kVersion = QStringLiteral("1.0.0");
+#endif
+} // namespace
+
 int main(int argc, char* argv[]) {
     QCoreApplication app(argc, argv);
     app.setApplicationName("bg_remover_cli");
 
     const auto printHelp = []() {
         std::cout
-            << "bg_remover_cli 1.0.0 — "
+            << "bg_remover_cli " << kVersion.toStdString() << " — "
             << I18n::tr("remoção de fundos de imagens localmente",
                         "offline image background removal").toStdString()
             << "\n\n"
@@ -41,7 +49,8 @@ int main(int argc, char* argv[]) {
         const QString a1 = argv[1];
         if (a1 == "-h" || a1 == "--help") { printHelp(); return 0; }
         if (a1 == "-v" || a1 == "--version") {
-            std::cout << "bg_remover_cli 1.0.0" << std::endl;
+            std::cout << "bg_remover_cli "
+                      << kVersion.toStdString() << std::endl;
             return 0;
         }
     }

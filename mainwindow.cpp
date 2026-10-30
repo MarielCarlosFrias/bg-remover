@@ -6,7 +6,9 @@
 #include "modelmanager.h"
 #include "modelpathresolver.h"
 #include <QCloseEvent>
+#include <QFile>
 #include <QFileDialog>
+#include <QImageReader>
 #include <QMessageBox>
 #include <QScrollArea>
 #include <QLabel>
@@ -379,7 +381,7 @@ MainWindow::MainWindow(QWidget* parent, const QString& modelPath)
     modelManager_ = new ModelManagerWidget(this);
     mainTabs_->addTab(modelManager_, TR("Modelos", "Models"));
     mainTabs_->addTab(new HelpWidget(this), TR("Ajuda", "Help"));
-    connect(modelManager_, &ModelManagerWidget::modelInstalled,
+    connect(modelManager_, &ModelManagerWidget::modelsChanged,
             this, [this](const QString&) {
         populateModelCombo();
     });
@@ -666,10 +668,16 @@ void MainWindow::openImage() {
 }
 
 void MainWindow::openPath(const QString& path) {
-    QImage img(path);
+    // setAutoTransform aplica a orientacao EXIF (fotos de telemovel).
+    QImageReader reader(path);
+    reader.setAutoTransform(true);
+    const QImage img = reader.read();
     if (img.isNull()) {
+        QString detail = reader.errorString();
+        if (!detail.isEmpty()) detail = "\n" + detail;
         QMessageBox::warning(this, TR("Erro", "Error"),
-            TR("Nao foi possivel carregar:\n", "Could not load:\n") + path);
+            TR("Nao foi possivel carregar:\n", "Could not load:\n")
+                + path + detail);
         return;
     }
     originalImage_ = img;
@@ -685,8 +693,16 @@ void MainWindow::loadModel() {
         this, TR("Carregar modelo ONNX", "Load ONNX model"),
         QDir::homePath(), "ONNX (*.onnx)");
     if (path.isEmpty()) return;
+    // Seleciona "Caminho customizado" sem deixar o slot limpar o
+    // caminho escolhido; o indice fixo (2) apontava para outro modelo
+    // quando havia modelos descarregados.
+    {
+        const QSignalBlocker blocker(modelCombo_);
+        const int customIdx = modelCombo_->findData(QString());
+        modelCombo_->setCurrentIndex(
+            customIdx >= 0 ? customIdx : modelCombo_->count() - 1);
+    }
     modelPathEdit_->setText(path);
-    modelCombo_->setCurrentIndex(2);
     resetModel();
     logEdit_->appendPlainText(
         "[INFO] " + TR("Modelo definido: ", "Model set: ") + path);
@@ -871,13 +887,24 @@ std::shared_ptr<BackgroundRemover> MainWindow::obtainRemover(
     const QString& modelPath)
 {
     if (!cache) return nullptr;
-    QMutexLocker lock(&cache->mutex);
-    if (!cache->remover || cache->loadedPath != modelPath) {
-        // Carrega dentro da thread de trabalho: a GUI nunca bloqueia.
-        cache->remover = std::make_shared<BackgroundRemover>(modelPath);
+    {
+        QMutexLocker lock(&cache->mutex);
+        if (cache->remover && cache->loadedPath == modelPath)
+            return cache->remover;
+    }
+
+    // Carrega fora do lock: a GUI pode chamar resetModel() enquanto o
+    // ONNX carrega (segundos) sem ficar bloqueada. Se outra thread
+    // carregar o mesmo modelo entretanto, reutiliza-se essa sessao.
+    const auto loaded = std::make_shared<BackgroundRemover>(modelPath);
+    {
+        QMutexLocker lock(&cache->mutex);
+        if (cache->remover && cache->loadedPath == modelPath)
+            return cache->remover;
+        cache->remover = loaded;
         cache->loadedPath = modelPath;
     }
-    return cache->remover;
+    return loaded;
 }
 
 void MainWindow::populateModelCombo()
@@ -885,14 +912,21 @@ void MainWindow::populateModelCombo()
     const QString current = modelPathEdit_->text();
     const QSignalBlocker blocker(modelCombo_);
     modelCombo_->clear();
-    modelCombo_->addItem(
-        TR("U\u00b2-Netp \u2014 r\u00e1pido (~5 MB)",
-           "U\u00b2-Netp \u2014 fast (~5 MB)"),
-        ModelPathResolver::resolve("u2netp.onnx"));
-    modelCombo_->addItem(
-        TR("U\u00b2-Net  \u2014 qualidade (~176 MB)",
-           "U\u00b2-Net  \u2014 quality (~176 MB)"),
-        ModelPathResolver::resolve("u2net.onnx"));
+
+    // So lista modelos que existem no disco; antes os dois primeiros
+    // apareciam sempre e falhavam na inferencia quando em falta.
+    const auto addInstalled = [this](const QString& fileName,
+                                     const QString& label) {
+        const QString path = ModelPathResolver::resolve(fileName);
+        if (QFile::exists(path))
+            modelCombo_->addItem(label, path);
+    };
+    addInstalled("u2netp.onnx",
+                 TR("U\u00b2-Netp \u2014 r\u00e1pido (~5 MB)",
+                    "U\u00b2-Netp \u2014 fast (~5 MB)"));
+    addInstalled("u2net.onnx",
+                 TR("U\u00b2-Net  \u2014 qualidade (~176 MB)",
+                    "U\u00b2-Net  \u2014 quality (~176 MB)"));
 
     // Modelos descarregados na aba "Modelos".
     const QDir modelsDir(ModelPathResolver::userModelsDir());
@@ -1171,6 +1205,7 @@ void MainWindow::finishBatch()
 {
     batchRunning_ = false;
     progressBar_->setValue(batchPlan_.size());
+    progressBar_->setVisible(false);
     logEdit_->appendPlainText(
         QString("[BATCH] %1: %2 OK, %3 erro(s).")
             .arg(batchCancelRequested_

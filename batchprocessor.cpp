@@ -6,6 +6,7 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QImage>
+#include <QImageReader>
 #include <iostream>
 #include <utility>
 
@@ -62,7 +63,10 @@ BatchProcessor::Result BatchProcessor::processDirectory(
             const QString outName =
                 QFileInfo(plan[i].outputPath).fileName();
 
-            QImage img(plan[i].inputPath);
+            // setAutoTransform respeita a orientacao EXIF.
+            QImageReader reader(plan[i].inputPath);
+            reader.setAutoTransform(true);
+            const QImage img = reader.read();
             if (img.isNull()) {
                 result.errors++;
                 result.errorMessages.append(

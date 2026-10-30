@@ -145,6 +145,8 @@ add_executable(bg_remover_cli
     backgroundremover.h)
 target_link_libraries(bg_remover_cli
     Qt6::Core Qt6::Gui onnxruntime)
+target_compile_definitions(bg_remover_cli PRIVATE
+    BG_REMOVER_VERSION="${PROJECT_VERSION}")
 if(NOT WIN32)
     set_target_properties(bg_remover_cli PROPERTIES
         INSTALL_RPATH "\$ORIGIN/../lib/bg-remover"

@@ -25,7 +25,6 @@ public:
     void clearEdits();
     bool canUndo() const;
     bool canRedo() const;
-    bool hasEdits() const;
 
 signals:
     void editingDone();
