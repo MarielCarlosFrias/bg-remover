@@ -36,6 +36,12 @@
 #include <QCloseEvent>
 #include <QKeySequence>
 #include <QMimeData>
+#include <QClipboard>
+#include <QDesktopServices>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
 #include <QResizeEvent>
 #include <QScrollBar>
 #include <QSettings>
@@ -88,6 +94,7 @@ MainWindow::MainWindow(QWidget* parent, const QString& modelPath)
       btnThemeToggle_(new QPushButton),
       btnRemove_(new QPushButton(TR("Remover fundo", "Remove background"))),
       btnSave_(new QPushButton(TR("Salvar como PNG", "Save as PNG"))),
+      btnCopy_(new QPushButton),
       btnLoadModel_(new QPushButton(TR("Buscar...", "Browse..."))),
       btnSelectFolder_(new QPushButton("...")),
       btnSelectOutput_(new QPushButton("...")),
@@ -100,6 +107,8 @@ MainWindow::MainWindow(QWidget* parent, const QString& modelPath)
       noiseThresholdSpin_(new QSpinBox),
       refineCheckBox_(new QCheckBox(TR("Refinar bordas", "Refine edges"))),
       noiseCheckBox_(new QCheckBox(TR("Limpar ruído", "Clean noise"))),
+      saveFormatCombo_(new QComboBox),
+      updateBanner_(new QLabel),
       progressBar_(new QProgressBar),
       logEdit_(new QPlainTextEdit),
       maskEditCanvas_(new MaskEditCanvas(this)),
@@ -254,9 +263,23 @@ MainWindow::MainWindow(QWidget* parent, const QString& modelPath)
     imageNameLabel_->setObjectName("imageName");
     workspaceToolbar->addWidget(imageNameLabel_);
     workspaceToolbar->addStretch();
-    auto* compareLabel = new QLabel(TR("Comparar", "Compare"));
-    compareLabel->setObjectName("viewModeActive");
-    workspaceToolbar->addWidget(compareLabel);
+    auto* btnCompare = new QPushButton(TR("Comparar", "Compare"));
+    btnCompare->setObjectName("viewModeActive");
+    btnCompare->setCheckable(true);
+    btnCompare->setToolTip(
+        TR("Arraste o divisor para ver o antes/depois (desativa o pincel)",
+           "Drag the divider to see before/after (disables the brush)"));
+    connect(btnCompare, &QPushButton::toggled, this,
+            [this](bool on) {
+        maskEditCanvas_->setCompareEnabled(on);
+        maskEditCanvas_->setCompareImage(originalImage_);
+        logEdit_->appendPlainText(on
+            ? "[INFO] " + TR("Comparacao antes/depois ativada.",
+                             "Before/after comparison enabled.")
+            : "[INFO] " + TR("Comparacao desativada.",
+                             "Comparison disabled."));
+    });
+    workspaceToolbar->addWidget(btnCompare);
     auto* editHint = new QLabel("Edite a máscara no resultado");
     editHint->setObjectName("workspaceHint");
     workspaceToolbar->addWidget(editHint);
@@ -319,6 +342,13 @@ MainWindow::MainWindow(QWidget* parent, const QString& modelPath)
     outputForm->setRowWrapPolicy(QFormLayout::WrapAllRows);
     outputForm->addRow(TR("Fundo ao salvar", "Background on save"),
                        bgColorCombo_);
+    // Formato de saida: so o PNG guarda transparencia; JPEG/WebP
+    // composicao sobre o fundo escolhido (branco por omissao).
+    saveFormatCombo_->addItem("PNG (transparente)");
+    saveFormatCombo_->addItem("JPEG");
+    saveFormatCombo_->addItem("WebP");
+    outputForm->addRow(TR("Formato", "Format"),
+                       saveFormatCombo_);
     inspectorLayout->addLayout(outputForm);
     inspectorLayout->addWidget(refineCheckBox_);
     inspectorLayout->addWidget(noiseCheckBox_);
@@ -408,6 +438,12 @@ MainWindow::MainWindow(QWidget* parent, const QString& modelPath)
     btnSelectOutput_->setText(TR("Salvar em…", "Save to…"));
     batchLayout->addWidget(btnSelectOutput_);
     batchLayout->addWidget(btnProcessBatch_);
+    btnCopy_->setObjectName("copyButton");
+    btnCopy_->setToolTip(
+        TR("Copiar resultado para a area de transferencia (Ctrl+Shift+C)",
+           "Copy result to the clipboard (Ctrl+Shift+C)"));
+    btnCopy_->setText(TR("Copiar", "Copy"));
+    batchLayout->addWidget(btnCopy_);
     btnSave_->setObjectName("saveButton");
     batchLayout->addWidget(btnSave_);
 
@@ -467,6 +503,11 @@ MainWindow::MainWindow(QWidget* parent, const QString& modelPath)
             this,              &MainWindow::removeBackground);
     connect(btnSave_,          &QPushButton::clicked,
             this,              &MainWindow::saveResult);
+    connect(btnCopy_,          &QPushButton::clicked,
+            this,              &MainWindow::copyResult);
+    connect(saveFormatCombo_, QOverload<int>::of(
+                &QComboBox::currentIndexChanged),
+            this,              &MainWindow::onSaveFormatChanged);
     connect(btnLoadModel_,     &QPushButton::clicked,
             this,              &MainWindow::loadModel);
     connect(btnSelectFolder_,  &QPushButton::clicked,
@@ -498,6 +539,8 @@ MainWindow::MainWindow(QWidget* parent, const QString& modelPath)
     connect(scOpen, &QShortcut::activated, this, &MainWindow::openImage);
     auto* scSave = new QShortcut(QKeySequence::Save, this);
     connect(scSave, &QShortcut::activated, this, &MainWindow::saveResult);
+    auto* scCopy = new QShortcut(QKeySequence("Ctrl+Shift+C"), this);
+    connect(scCopy, &QShortcut::activated, this, &MainWindow::copyResult);
     auto* scUndo = new QShortcut(QKeySequence::Undo, this);
     connect(scUndo, &QShortcut::activated, this,
             [this]() { maskEditCanvas_->undo(); });
@@ -567,6 +610,9 @@ MainWindow::MainWindow(QWidget* parent, const QString& modelPath)
             modelCombo_->setCurrentIndex(modelCombo_->count() - 1);
         }
     }
+
+    // Verificacao de nova versao (assincrona, silenciosa em falha).
+    checkForUpdate();
 }
 
 void MainWindow::editingDone()
@@ -809,27 +855,169 @@ void MainWindow::saveResult() {
             TR("Remova o fundo primeiro.", "Remove the background first."));
         return;
     }
-    QString path = QFileDialog::getSaveFileName(
-        this, TR("Salvar PNG", "Save PNG"), QDir::homePath(),
-        "PNG (*.png)");
-    if (path.isEmpty()) return;
-    QFileInfo fi(path);
-    if (fi.suffix().toLower() != "png") path += ".png";
+    // Formatos sem canal alfa precisam de fundo solido, senao o Qt
+    // compoe sobre preto e o resultado surpreende.
+    const bool needSolidBg = currentBackgroundColor().isValid()
+        || !saveFormatIsAlphaCapable();
+    QColor bg = currentBackgroundColor();
+    if (needSolidBg && !bg.isValid()) bg = Qt::white;
 
     ProcessingOptions saveOptions;
-    saveOptions.backgroundColor = currentBackgroundColor();
-    const QImage toSave = ImagePostProcessor::apply(
-        resultImage_, saveOptions);
+    saveOptions.backgroundColor = bg;
 
-    if (!toSave.save(path, "PNG")) {
+    // Extensao vazia (utilizador escreveu so o nome): completar com
+    // a do formato escolhido no dialogo anterior.
+    QString path = QFileDialog::getSaveFileName(
+        this, TR("Salvar imagem", "Save image"), QDir::homePath(),
+        saveFormatFilter());
+    if (path.isEmpty()) return;
+    QFileInfo fi(path);
+    if (fi.suffix().isEmpty())
+        path += "." + saveFormatExtension();
+
+    const QImage toSave = needSolidBg
+        ? ImagePostProcessor::apply(resultImage_, saveOptions)
+        : resultImage_;
+
+    if (!toSave.save(path, saveFormatExtension().toUpper().toUtf8().constData())) {
         QMessageBox::critical(this, TR("Erro", "Error"),
             TR("Nao foi possivel salvar:\n", "Could not save:\n") + path);
     } else {
         QMessageBox::information(this, TR("OK", "OK"),
             TR("Salvo:\n", "Saved:\n") + path);
         logEdit_->appendPlainText(
-            "[OK] " + TR("PNG salvo: ", "PNG saved: ") + path);
+            "[OK] " + TR("Imagem salva: ", "Image saved: ") + path);
     }
+}
+
+QString MainWindow::saveFormatFilter() const
+{
+    switch (saveFormatCombo_->currentIndex()) {
+    case 1: return QStringLiteral("JPEG (*.jpg *.jpeg)");
+    case 2: return QStringLiteral("WebP (*.webp)");
+    default: return QStringLiteral("PNG (*.png)");
+    }
+}
+
+QString MainWindow::saveFormatExtension() const
+{
+    switch (saveFormatCombo_->currentIndex()) {
+    case 1: return QStringLiteral("jpg");
+    case 2: return QStringLiteral("webp");
+    default: return QStringLiteral("png");
+    }
+}
+
+bool MainWindow::saveFormatIsAlphaCapable() const
+{
+    return saveFormatCombo_->currentIndex() == 0;  // PNG
+}
+
+void MainWindow::copyResult()
+{
+    if (resultImage_.isNull()) {
+        QMessageBox::warning(this, TR("Aviso", "Warning"),
+            TR("Remova o fundo primeiro.", "Remove the background first."));
+        return;
+    }
+    // Sem transparencia na area de transferencia: compor sobre o
+    // fundo escolhido (ou branco), como no salvamento.
+    ProcessingOptions options;
+    QColor bg = currentBackgroundColor();
+    if (!bg.isValid()) bg = Qt::white;
+    options.backgroundColor = bg;
+
+    QApplication::clipboard()->setImage(
+        ImagePostProcessor::apply(resultImage_, options));
+    logEdit_->appendPlainText(
+        "[OK] " + TR("Resultado copiado para a area de transferencia.",
+                     "Result copied to the clipboard."));
+}
+
+void MainWindow::onSaveFormatChanged(int index)
+{
+    // PNG guarda transparencia; JPEG/WebP fundem sobre o fundo
+    // escolhido, por isso o rotulo da combo muda de contexto.
+    Q_UNUSED(index)
+}
+
+void MainWindow::checkForUpdate()
+{
+    // Uma vez por sessao, assincrono e silencioso: falha de rede nao
+    // deve incomodar quem trabalha offline.
+    if (updateNam_) return;
+    updateNam_ = new QNetworkAccessManager(this);
+
+    QNetworkRequest request(QUrl(QStringLiteral(
+        "https://api.github.com/repos/MarielCarlosFrias/bg-remover"
+        "/releases/latest")));
+    request.setRawHeader("Accept", "application/vnd.github+json");
+    request.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
+                         QNetworkRequest::NoLessSafeRedirectPolicy);
+    QNetworkReply* reply = updateNam_->get(request);
+    connect(reply, &QNetworkReply::finished, this,
+            &MainWindow::onUpdateCheckFinished);
+}
+
+void MainWindow::onUpdateCheckFinished()
+{
+    QNetworkReply* reply = qobject_cast<QNetworkReply*>(sender());
+    if (!reply) return;
+    reply->deleteLater();
+
+    if (reply->error() != QNetworkReply::NoError) {
+        // Offline ou rate limit: sigiloso.
+        return;
+    }
+
+    const QJsonDocument doc = QJsonDocument::fromJson(reply->readAll());
+    if (doc.isObject()) {
+        latestRemoteVersion_ =
+            doc.object().value("tag_name").toString();
+    }
+    if (latestRemoteVersion_.isEmpty()) return;
+
+    // Comparacao semantica simples (major.minor.patch), ignorando o "v".
+    const QString remote = latestRemoteVersion_.startsWith('v')
+        ? latestRemoteVersion_.mid(1) : latestRemoteVersion_;
+    const QString local = QStringLiteral(BG_REMOVER_VERSION);
+    auto parse = [](const QString& s) {
+        const QStringList parts = s.split('.');
+        QList<int> nums;
+        for (const QString& p : parts) nums << p.toInt();
+        while (nums.size() < 3) nums << 0;
+        return nums;
+    };
+    const QList<int> r = parse(remote);
+    const QList<int> l = parse(local);
+
+    if (r.at(0) > l.at(0)
+        || (r.at(0) == l.at(0) && r.at(1) > l.at(1))
+        || (r.at(0) == l.at(0) && r.at(1) == l.at(1) && r.at(2) > l.at(2))) {
+        // Banner clicavel no topo do workspace.
+        updateBanner_->setText(
+            TR("⬆ Nova versão %1 disponível — clique para abrir as releases",
+               "⬆ New version %1 available — click to open releases")
+                .arg(latestRemoteVersion_));
+        updateBanner_->setCursor(Qt::PointingHandCursor);
+        updateBanner_->setObjectName("updateBanner");
+        // Inserido antes do divisor de preview (posicao 0 do workspace).
+        auto* wl = workspaceLayout();
+        if (wl) wl->insertWidget(0, updateBanner_);
+        connect(updateBanner_, &QLabel::linkActivated, this, [](const QString&) {
+            QDesktopServices::openUrl(QUrl(QStringLiteral(
+                "https://github.com/MarielCarlosFrias/bg-remover/releases")));
+        });
+    }
+}
+
+QVBoxLayout* MainWindow::workspaceLayout()
+{
+    // O workspace e o frame pai da barra de ferramentas de zoom.
+    QWidget* w = originalScroll_;
+    while (w && w->objectName() != QLatin1String("workspace"))
+        w = w->parentWidget();
+    return w ? qobject_cast<QVBoxLayout*>(w->layout()) : nullptr;
 }
 
 void MainWindow::selectFolder() {
@@ -967,6 +1155,12 @@ void MainWindow::restoreSettings()
         settings.value("options/cleanNoise", false).toBool());
     noiseThresholdSpin_->setValue(
         settings.value("options/noiseThreshold", kAlphaThreshold).toInt());
+    {
+        const QSignalBlocker blocker(saveFormatCombo_);
+        const int fmt = settings.value("output/saveFormat", 0).toInt();
+        if (fmt >= 0 && fmt < saveFormatCombo_->count())
+            saveFormatCombo_->setCurrentIndex(fmt);
+    }
 
     const QVariant colorVar = settings.value("output/customColor");
     if (colorVar.isValid()) {
@@ -1002,6 +1196,8 @@ void MainWindow::saveSettings()
                       noiseThresholdSpin_->value());
     settings.setValue("output/bgIndex", bgColorCombo_->currentIndex());
     settings.setValue("output/customColor", customBgColor_);
+    settings.setValue("output/saveFormat",
+                     saveFormatCombo_->currentIndex());
     if (!modelPathEdit_->text().isEmpty())
         settings.setValue("model/path", modelPathEdit_->text());
 }

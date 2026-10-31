@@ -5,6 +5,7 @@
 #include <QResizeEvent>
 #include <QColorDialog>
 #include <QLineF>
+#include <QCursor>
 #include <algorithm>
 #include <cmath>
 
@@ -112,6 +113,41 @@ void MaskEditCanvas::clearEdits()
     cursorPos_ = QPoint(-1, -1);
     emit availabilityChanged(canUndo(), canRedo());
     update();
+}
+
+// ---- Comparacao "antes / depois" --------------------------------------
+
+void MaskEditCanvas::setCompareEnabled(bool enabled)
+{
+    if (compareEnabled_ == enabled) return;
+    compareEnabled_ = enabled;
+    draggingDivider_ = false;
+    cursorPos_ = QPoint(-1, -1);
+    setCursor(Qt::ArrowCursor);
+    if (enabled) painting_ = false;   // o pincel fica suspenso
+    compareScaled_ = QImage();        // reescalar para o tamanho novo
+    compareScaledSize_ = QSize();
+    update();
+}
+
+void MaskEditCanvas::setCompareImage(const QImage& image)
+{
+    compareImage_ = image;
+    compareScaled_ = QImage();
+    compareScaledSize_ = QSize();
+    update();
+}
+
+void MaskEditCanvas::setCompareRatio(qreal ratio)
+{
+    compareRatio_ = qBound(0.0, ratio, 1.0);
+    update();
+}
+
+int MaskEditCanvas::dividerX() const
+{
+    const QRect pr = getPixmapRect();
+    return pr.left() + static_cast<int>(pr.width() * compareRatio_);
 }
 
 float MaskEditCanvas::scaleFactor() const
@@ -266,7 +302,41 @@ void MaskEditCanvas::paintEvent(QPaintEvent*)
     }
     painter.drawImage(destRect, renderCache_);
 
-    if (cursorPos_.x() >= 0 && cursorPos_.y() >= 0) {
+    // Modo comparacao: a area a esquerda do divisor mostra o original.
+    if (compareEnabled_ && !compareImage_.isNull()
+        && destRect.width() > 0 && destRect.height() > 0) {
+        if (compareScaled_.isNull() || compareScaledSize_ != destRect.size()) {
+            compareScaled_ = compareImage_.scaled(
+                destRect.size(), Qt::IgnoreAspectRatio,
+                Qt::SmoothTransformation);
+            compareScaledSize_ = destRect.size();
+        }
+        const int x = dividerX();
+        if (x > destRect.left()) {
+            const QRect leftRect(destRect.left(), destRect.top(),
+                                 x - destRect.left(), destRect.height());
+            const QRect srcRect(0, 0,
+                                leftRect.width(), compareScaled_.height());
+            painter.drawImage(leftRect, compareScaled_, srcRect);
+        }
+        // Linha do divisor + pega central.
+        painter.setPen(QPen(QColor(0x36, 0xc6, 0x6a), 2, Qt::SolidLine));
+        painter.drawLine(x, destRect.top(), x, destRect.bottom());
+        const int cy = destRect.center().y();
+        painter.setBrush(QColor(0x36, 0xc6, 0x6a));
+        painter.setPen(QPen(Qt::white, 1));
+        painter.drawEllipse(QPoint(x, cy), 7, 7);
+        // Setas indicativas.
+        painter.setPen(QPen(Qt::white, 1, Qt::SolidLine));
+        painter.drawLine(x - 4, cy - 3, x - 4, cy + 3);
+        painter.drawLine(x - 2, cy, x - 5, cy - 2);
+        painter.drawLine(x - 2, cy, x - 5, cy + 2);
+        painter.drawLine(x + 4, cy - 3, x + 4, cy + 3);
+        painter.drawLine(x + 2, cy, x + 5, cy - 2);
+        painter.drawLine(x + 2, cy, x + 5, cy + 2);
+    }
+
+    if (!compareEnabled_ && cursorPos_.x() >= 0 && cursorPos_.y() >= 0) {
         painter.setPen(QPen(Qt::red, 1, Qt::SolidLine));
         painter.setBrush(Qt::NoBrush);
         const int cursorRadius = qMax(1, static_cast<int>(
@@ -280,6 +350,19 @@ void MaskEditCanvas::mousePressEvent(
     QMouseEvent* event)
 {
     if (event->button() != Qt::LeftButton) return;
+
+    // Em modo comparacao o rato controla o divisor, nao o pincel.
+    if (compareEnabled_) {
+        const QRect pr = getPixmapRect();
+        if (pr.contains(event->pos())) {
+            draggingDivider_ = true;
+            setCompareRatio(static_cast<qreal>(event->pos().x() - pr.left())
+                            / qMax(1, pr.width()));
+            emit compareRatioChanged(compareRatio_);
+        }
+        return;
+    }
+
     QPoint imgPos = widgetToImage(event->pos());
     if (imgPos.x() < 0) return;
 
@@ -300,6 +383,23 @@ void MaskEditCanvas::mousePressEvent(
 void MaskEditCanvas::mouseMoveEvent(
     QMouseEvent* event)
 {
+    if (compareEnabled_) {
+        if (draggingDivider_) {
+            const QRect pr = getPixmapRect();
+            if (pr.width() > 0) {
+                setCompareRatio(
+                    static_cast<qreal>(event->pos().x() - pr.left())
+                    / pr.width());
+                emit compareRatioChanged(compareRatio_);
+            }
+        } else {
+            // Cursor de "dividir" perto da linha, para descobrir o arraste.
+            const bool near = qAbs(event->pos().x() - dividerX()) <= 6;
+            setCursor(near ? Qt::SplitHCursor : Qt::ArrowCursor);
+        }
+        return;
+    }
+
     cursorPos_ = event->pos();
     update();
 
@@ -324,6 +424,11 @@ void MaskEditCanvas::mouseMoveEvent(
 void MaskEditCanvas::mouseReleaseEvent(
     QMouseEvent*)
 {
+    if (draggingDivider_) {
+        draggingDivider_ = false;
+        update();
+        return;
+    }
     if (painting_) {
         painting_ = false;
         emit availabilityChanged(canUndo(), canRedo());

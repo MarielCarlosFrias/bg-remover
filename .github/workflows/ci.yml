@@ -13,6 +13,17 @@ jobs:
       - name: Install dependencies
         run: sudo apt-get update && sudo apt-get install -y cmake ninja-build qt6-base-dev
 
+      - name: Build with sanitizers and run tests
+        # ASan/UBSan apanha memory bugs e UB antes dos utilizadores.
+        env:
+          ASAN_OPTIONS: detect_leaks=0
+        run: |
+          cmake -S . -B build-asan -G Ninja -DBG_REMOVER_FETCH_ONNX_RUNTIME=ON \
+            -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer" \
+            -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined"
+          cmake --build build-asan --parallel
+          ctest --test-dir build-asan --output-on-failure
+
       - name: Fetch model for the inference test (best effort)
         # Sem u2netp.onnx o CMake desativa o inference_test, e o nucleo
         # do programa ficava sem cobertura no CI. Melhor esforco: se a

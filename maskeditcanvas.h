@@ -26,10 +26,22 @@ public:
     bool canUndo() const;
     bool canRedo() const;
 
+    // Comparacao "antes/depois": com o modo ativo, a area a esquerda
+    // do divisor mostra a imagem original e a da lado direito o
+    // resultado editado. Arrastar o divisor muda a proporcao; enquanto
+    // o modo esta ativo o pincel fica suspenso.
+    void setCompareEnabled(bool enabled);
+    bool compareEnabled() const { return compareEnabled_; }
+    void setCompareImage(const QImage& image);
+    qreal compareRatio() const { return compareRatio_; }
+    void setCompareRatio(qreal ratio);
+
 signals:
     void editingDone();
     // Emitido sempre que a disponibilidade de desfazer/refazer muda.
     void availabilityChanged(bool canUndo, bool canRedo);
+    // Emitido quando o utilizador arrasta o divisor de comparacao.
+    void compareRatioChanged(qreal ratio);
 
 public slots:
     void setMode(Mode mode);
@@ -48,6 +60,8 @@ private:
     void applyBrush(const QPoint& imgPos);
     static QImage renderWithBackground(const QImage& img,
                                         const QColor& bgColor);
+    int dividerX() const;
+    void invalidateScaledCaches();
 
     QImage originalImage_;
     QImage originalRgba_;   // originalImage_ normalizado em RGBA8888
@@ -63,6 +77,14 @@ private:
     static constexpr int kMaxUndoLevels = 10;
     QImage renderCache_;        // composicao xadrez/fundo + alpha em cache
     bool renderCacheValid_ = false;
+    QSize renderCacheSize_;     // tamanho para o qual o cache e valido
+
+    bool compareEnabled_ = false;
+    qreal compareRatio_ = 0.5;
+    bool draggingDivider_ = false;
+    QImage compareImage_;       // original, para o lado esquerdo
+    QImage compareScaled_;      // compareImage_ escalado ao destino
+    QSize compareScaledSize_;
 };
 
 #endif

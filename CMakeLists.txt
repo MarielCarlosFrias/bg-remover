@@ -188,6 +188,13 @@ add_executable(test_batchplan
 target_link_libraries(test_batchplan Qt6::Core)
 add_test(NAME batchplan_test COMMAND test_batchplan)
 
+add_executable(test_modelpath
+    test_modelpath.cpp
+    modelpathresolver.cpp
+    modelpathresolver.h)
+target_link_libraries(test_modelpath Qt6::Core)
+add_test(NAME modelpath_test COMMAND test_modelpath)
+
 add_executable(test_inference
     test_inference.cpp
     backgroundremover.cpp

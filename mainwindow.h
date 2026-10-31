@@ -28,6 +28,9 @@ class QDragEnterEvent;
 class QDropEvent;
 class QEvent;
 class QTimer;
+class QNetworkAccessManager;
+class QNetworkReply;
+class QVBoxLayout;
 class MaskEditCanvas;
 class ModelManagerWidget;
 
@@ -68,6 +71,7 @@ private slots:
     void openImage();
     void onRemoveFinished();
     void saveResult();
+    void copyResult();
     void loadModel();
     void selectFolder();
     void selectOutputFolder();
@@ -77,6 +81,8 @@ private slots:
     void modelIndexChanged(int index);
     void bgColorChanged(int index);
     void editingDone();
+    void onSaveFormatChanged(int index);
+    void onUpdateCheckFinished();
 
 private:
     struct SingleResult {
@@ -95,6 +101,11 @@ private:
     void populateModelCombo();
     void restoreSettings();
     void saveSettings();
+    void checkForUpdate();
+    QVBoxLayout* workspaceLayout();
+    QString saveFormatFilter() const;
+    QString saveFormatExtension() const;
+    bool saveFormatIsAlphaCapable() const;
     ProcessingOptions currentProcessingOptions() const;
     QColor currentBackgroundColor() const;
 
@@ -116,6 +127,7 @@ private:
     QComboBox* langCombo_;
     QPushButton* btnRemove_;
     QPushButton* btnSave_;
+    QPushButton* btnCopy_;
     QPushButton* btnLoadModel_;
     QPushButton* btnSelectFolder_;
     QPushButton* btnSelectOutput_;
@@ -128,6 +140,8 @@ private:
     QSpinBox* noiseThresholdSpin_;
     QCheckBox* refineCheckBox_;
     QCheckBox* noiseCheckBox_;
+    QComboBox* saveFormatCombo_;
+    QLabel* updateBanner_;
     QProgressBar* progressBar_;
     QPlainTextEdit* logEdit_;
     MaskEditCanvas* maskEditCanvas_;
@@ -150,6 +164,8 @@ private:
     QImage originalImage_;
     QImage resultImage_;
     std::shared_ptr<ModelCache> modelCache_;
+    QNetworkAccessManager* updateNam_ = nullptr;
+    QString latestRemoteVersion_;
     QFutureWatcher<SingleResult> removeWatcher_;
     QFutureWatcher<QString> batchWatcher_;
 };

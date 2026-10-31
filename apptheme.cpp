@@ -150,6 +150,13 @@ QString stylesheet(bool dark)
     q += QString("QPlainTextEdit { background: %1; border: 1px solid %2;"
                  " border-radius: 7px; color: %3; }\n").arg(logBg, border, text);
 
+    // Aviso de nova versao (cores da marca, iguais nos dois temas)
+    q += QString("QLabel#updateBanner { background: #36c66a; color: #102217;"
+                 " border: 1px solid #36c66a; border-radius: 7px;"
+                 " padding: 7px 10px; font-weight: 600; }\n");
+    q += QString("QLabel#updateBanner:hover { background: #2f9e52;"
+                 " color: #ffffff; }\n");
+
     // Aba de ajuda
     q += QString("QTextBrowser { background: %1; border: 1px solid %2;"
                  " border-radius: 10px; padding: 12px; color: %3; }\n")
