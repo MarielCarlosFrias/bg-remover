@@ -30,7 +30,10 @@ A página de [**Releases**](https://github.com/MarielCarlosFrias/bg-remover/rele
 - Fundo transparente, branco, preto ou uma cor personalizada.
 - Refinamento de bordas e limpeza de ruído com limiar ajustável.
 - Edição manual da máscara com modos **Restaurar** e **Apagar**.
-- **Desfazer/Refazer multi-nível** (Ctrl+Z / Ctrl+Y) e atalhos de teclado (Ctrl+O, Ctrl+S, Ctrl+±, Ctrl+0).
+- **Desfazer/Refazer multi-nível** (Ctrl+Z / Ctrl+Y), **Copiar resultado** (Ctrl+Shift+C) e atalhos de teclado (Ctrl+O, Ctrl+S, Ctrl+±, Ctrl+0).
+- **Comparar antes/depois**: divisor arrastável sobre o resultado para ver o original e o recorte lado a lado.
+- **Salvar em PNG, JPEG ou WebP** — formatos sem transparência são compostos sobre o fundo escolhido.
+- **Aviso de nova versão**: o programa consulta as releases do projeto e avisa quando há atualização.
 - **Arraste e solte** imagens (abre) ou pastas (define o lote) sobre a janela.
 - **Tema escuro e claro** com alternância e persistência; preferências salvas (pastas, modelo, geometria).
 - Zoom de 50% a 400% **centrado no cursor** (Ctrl + roda do mouse).
