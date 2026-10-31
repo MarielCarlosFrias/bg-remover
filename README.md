@@ -162,7 +162,7 @@ Os modelos, o runtime extraído, os diretórios de build e os resultados locais 
 
 - U²-Netp privilegia velocidade; cabelo e transparências muito finas podem precisar de correção manual. U²-Net oferece melhor segmentação, mas é substancialmente maior.
 - O ZIP do Windows é gerado e verificado pelo CI (DLLs e plugins presentes), mas ainda **não foi testado numa instalação limpa do Windows** — se encontrar problemas, abra uma [issue](https://github.com/MarielCarlosFrias/bg-remover/issues).
-- O `.AppImage` é gerado pelo CI, mas ainda **não foi validado numa execução real** — se encontrar problemas, abra uma issue.
+- O `.AppImage` é gerado pelo CI e **validado localmente** (empacotado com `linuxdeploy`, com Qt, ONNX Runtime e modelos incluídos); ainda não foi testado em várias distros diferentes.
 - Modelos de 1024×1024 (ISNet) são mais lentos em CPU: a máscara tem 16× mais pixels de entrada que a U²-Netp.
 
 ## Créditos
