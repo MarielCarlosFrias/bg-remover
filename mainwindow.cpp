@@ -9,6 +9,7 @@
 #include <QFile>
 #include <QFileDialog>
 #include <QImageReader>
+#include <QImageWriter>
 #include <QMessageBox>
 #include <QScrollArea>
 #include <QLabel>
@@ -113,14 +114,15 @@ MainWindow::MainWindow(QWidget* parent, const QString& modelPath)
       logEdit_(new QPlainTextEdit),
       maskEditCanvas_(new MaskEditCanvas(this)),
       zoomDebounce_(new QTimer(this)),
-      modelCache_(std::make_shared<ModelCache>()),
       batchIndex_(0),
       batchOk_(0),
       batchErrors_(0),
       batchRunning_(false),
       batchCancelRequested_(false),
       customBgColor_(QColor()),
-      previewZoomPercent_(100)
+      previewZoomPercent_(100),
+      // Ordem igual a da declaracao na classe (evita -Wreorder).
+      modelCache_(std::make_shared<ModelCache>())
 {
     originalLabel_->setAlignment(Qt::AlignCenter);
 
@@ -879,7 +881,22 @@ void MainWindow::saveResult() {
         ? ImagePostProcessor::apply(resultImage_, saveOptions)
         : resultImage_;
 
-    if (!toSave.save(path, saveFormatExtension().toUpper().toUtf8().constData())) {
+    // O formato escolhido pode nao estar disponivel nesta instalacao
+    // (ex.: WebP precisa do pacote qt6-image-formats-plugins no Linux).
+    const QByteArray fmt = saveFormatExtension().toUpper().toUtf8();
+    if (!QImageWriter::supportedImageFormats().contains(fmt.toLower())) {
+        QMessageBox::warning(this, TR("Aviso", "Warning"),
+            TR("O formato %1 não é suportado nesta instalação do Qt "
+               "(no Linux instale o pacote "
+               "'qt6-image-formats-plugins'). Use PNG.",
+               "Format %1 is not supported by this Qt installation "
+               "(on Linux install the 'qt6-image-formats-plugins' "
+               "package). Use PNG instead.")
+                .arg(saveFormatExtension().toUpper()));
+        return;
+    }
+
+    if (!toSave.save(path, fmt.constData())) {
         QMessageBox::critical(this, TR("Erro", "Error"),
             TR("Nao foi possivel salvar:\n", "Could not save:\n") + path);
     } else {
