@@ -105,7 +105,10 @@ jobs:
       - name: Verify Qt deployment
         shell: pwsh
         run: |
-          Expand-Archive dist/bg-remover_1.0.0_win64.zip package
+          # Nome independente da versao (o CPack usa a do CMakeLists).
+          $zip = Get-ChildItem dist -Filter *.zip | Select-Object -First 1
+          if (-not $zip) { throw 'Nenhum ZIP gerado em dist/' }
+          Expand-Archive $zip.FullName package
           # Diagnostico: lista tudo o que ficou no ZIP.
           Get-ChildItem -Recurse package | Select-Object -ExpandProperty FullName
           $need = @('platforms\qwindows.dll','onnxruntime.dll','onnxruntime_providers_shared.dll')
@@ -120,4 +123,4 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: bg-remover-windows-portable
-          path: dist/bg-remover_1.0.0_win64.zip
+          path: dist/*.zip
