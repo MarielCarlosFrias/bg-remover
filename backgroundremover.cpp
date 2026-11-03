@@ -203,20 +203,14 @@ QImage BackgroundRemover::buildAlphaMask(
 QImage BackgroundRemover::composite(
     const QImage& img, const QImage& alpha) const
 {
-    QImage result = img.convertToFormat(
-        QImage::Format_RGBA8888);
-    for (int y = 0; y < result.height(); ++y) {
-        const QRgb* rgb_row = reinterpret_cast<const QRgb*>(
-            result.constScanLine(y));
-        const quint8* alpha_row =
-            alpha.constScanLine(y);
-        QRgb* out_row = reinterpret_cast<QRgb*>(
-            result.scanLine(y));
-        for (int x = 0; x < result.width(); ++x) {
-            QRgb rgb = rgb_row[x];
-            quint8 a  = alpha_row[x];
-            out_row[x] = qRgba(qRed(rgb), qGreen(rgb),
-                                   qBlue(rgb), a);
+    QImage result = img.convertToFormat(QImage::Format_RGBA8888);
+    const int width = result.width();
+    const int height = result.height();
+    for (int y = 0; y < height; ++y) {
+        quint8* out_row = result.scanLine(y);
+        const quint8* alpha_row = alpha.constScanLine(y);
+        for (int x = 0; x < width; ++x) {
+            out_row[x * 4 + 3] = alpha_row[x];
         }
     }
     return result;

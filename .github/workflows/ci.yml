@@ -4,6 +4,13 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   linux:
     runs-on: ubuntu-latest
@@ -11,18 +18,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y cmake ninja-build qt6-base-dev
-
-      - name: Build with sanitizers and run tests
-        # ASan/UBSan apanha memory bugs e UB antes dos utilizadores.
-        env:
-          ASAN_OPTIONS: detect_leaks=0
-        run: |
-          cmake -S . -B build-asan -G Ninja -DBG_REMOVER_FETCH_ONNX_RUNTIME=ON \
-            -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer" \
-            -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined"
-          cmake --build build-asan --parallel
-          ctest --test-dir build-asan --output-on-failure
+        run: sudo apt-get update && sudo apt-get install -y cmake ninja-build qt6-base-dev qt6-image-formats-plugins
 
       - name: Fetch model for the inference test (best effort)
         # Sem u2netp.onnx o CMake desativa o inference_test, e o nucleo
@@ -35,6 +31,19 @@ jobs:
           && echo '309c8469258dda742793dce0ebea8e6dd393174f89934733ecc8b14c76f4ddd8  u2netp.onnx' | sha256sum --check \
           || echo "AVISO: modelo nao obtido; inference_test sera desativado"
 
+      - name: Build with sanitizers and run tests
+        # ASan/UBSan apanha memory bugs e UB antes dos utilizadores.
+        # O modelo e obtido antes do configure para que inference_test
+        # e batchprocessor_test tambem corram com sanitizers.
+        env:
+          ASAN_OPTIONS: detect_leaks=0
+        run: |
+          cmake -S . -B build-asan -G Ninja -DBG_REMOVER_FETCH_ONNX_RUNTIME=ON \
+            -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer" \
+            -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined"
+          cmake --build build-asan --parallel
+          ctest --test-dir build-asan --output-on-failure
+
       - name: Configure
         run: cmake -S . -B build -G Ninja -DBG_REMOVER_FETCH_ONNX_RUNTIME=ON
 
@@ -43,6 +52,67 @@ jobs:
 
       - name: Test
         run: ctest --test-dir build --output-on-failure
+
+  macos:
+    # Runner Apple Silicon: o binario e compilado universal2 para
+    # correr tambem em Macs Intel.
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install aqt and Qt 6.7.3
+        run: |
+          python3 -m venv "$RUNNER_TEMP/aqt"
+          "$RUNNER_TEMP/aqt/bin/pip" install --quiet aqtinstall
+          "$RUNNER_TEMP/aqt/bin/aqt" install-qt mac desktop 6.7.3 clang_64 -O Qt
+          # O aqt pode usar "macos" ou "clang_64" como pasta da
+          # arquitetura; localizamos o binario e derivamos a raiz.
+          MACDEPLOYQT="$(find "$PWD/Qt" -name macdeployqt -type f -print -quit)"
+          test -n "$MACDEPLOYQT"
+          QT_DIR="$(dirname "$(dirname "$MACDEPLOYQT")")"
+          echo "QT_DIR=$QT_DIR" >> "$GITHUB_ENV"
+          echo "CMAKE_PREFIX_PATH=$QT_DIR" >> "$GITHUB_ENV"
+          echo "$QT_DIR/bin" >> "$GITHUB_PATH"
+
+      - name: Fetch model for tests (best effort)
+        run: |
+          curl -fL --http1.1 --retry 5 --retry-delay 3 --retry-all-errors \
+            -o u2netp.onnx \
+            https://github.com/danielgatis/rembg/releases/download/v0.0.0/u2netp.onnx \
+            && echo '309c8469258dda742793dce0ebea8e6dd393174f89934733ecc8b14c76f4ddd8  u2netp.onnx' | shasum -a 256 -c - \
+            || echo "AVISO: modelo nao obtido; testes de inferencia desativados"
+
+      - name: Configure
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
+            -DINSTALLED=ON -DBG_REMOVER_FETCH_ONNX_RUNTIME=ON \
+            -DCMAKE_OSX_ARCHITECTURES="x86_64;arm64"
+
+      - name: Build and test
+        run: |
+          cmake --build build --parallel
+          ctest --test-dir build --output-on-failure
+
+      - name: Install and deploy bundle
+        run: |
+          cmake --install build --prefix "$PWD/dist"
+          APP=dist/bg_remover_gui.app
+          "$QT_DIR/bin/macdeployqt" "$APP" -always-overwrite \
+            -executable="$APP/Contents/MacOS/bg_remover_cli"
+
+      - name: Verify bundle
+        run: |
+          APP=dist/bg_remover_gui.app
+          test -x "$APP/Contents/MacOS/bg_remover_gui"
+          test -x "$APP/Contents/MacOS/bg_remover_cli"
+          test -f "$APP/Contents/Frameworks/libonnxruntime.dylib"
+          ls "$APP/Contents/Frameworks"/libonnxruntime*.dylib
+          otool -L "$APP/Contents/MacOS/bg_remover_gui" | grep -q onnxruntime
+          otool -L "$APP/Contents/MacOS/bg_remover_cli" | grep -q onnxruntime
+          otool -L "$APP/Contents/MacOS/bg_remover_cli" | grep -q '@executable_path/../Frameworks'
+          ! otool -L "$APP/Contents/MacOS/bg_remover_gui" | grep -q "$QT_DIR"
+          ! otool -L "$APP/Contents/MacOS/bg_remover_cli" | grep -q "$QT_DIR"
+          "$APP/Contents/MacOS/bg_remover_cli" --version
 
   windows:
     # Imagem fixada: o install-qt-action v4 falha na imagem 2025.

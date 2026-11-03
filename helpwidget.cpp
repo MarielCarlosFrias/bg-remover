@@ -131,9 +131,9 @@ void HelpWidget::rebuildHtml()
                      TR("pincel Restaurar/Apagar + Ctrl+Z",
                         "Restore/Erase brush + Ctrl+Z")),
             cardCell("\U0001F4BE", "4.",
-                     TR("Salve o PNG", "Save the PNG"),
-                     TR("fundo transparente ou colorido",
-                        "transparent or colored background")));
+                     TR("Salve a imagem", "Save the image"),
+                     TR("PNG, JPEG ou WebP; fundo transparente ou colorido",
+                        "PNG, JPEG or WebP; transparent or colored background")));
 
     html += QStringLiteral("<h3>\u2328 %1</h3>"
         "<table cellpadding=\"7\" cellspacing=\"6\">"
@@ -143,7 +143,7 @@ void HelpWidget::rebuildHtml()
         .arg(
             shortcutRow("Ctrl+O",
                         TR("abrir imagem", "open image"),
-                        "Ctrl+S", TR("salvar PNG", "save PNG")),
+                        "Ctrl+S", TR("salvar imagem", "save image")),
             shortcutRow("Ctrl+Z / Y",
                         TR("desfazer / refazer", "undo / redo"),
                         "Ctrl + " + TR("roda", "wheel"),

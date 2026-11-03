@@ -31,12 +31,40 @@ inline const QRegularExpression& generatedOutputName()
 
 struct Entry {
     QString inputPath;   // caminho absoluto da imagem de entrada
-    QString outputPath;  // caminho absoluto unico de saida (PNG)
+    QString outputPath;  // caminho absoluto unico de saida (formato escolhido)
 };
+
+// Extensao normalizada: sem ponto inicial, em minusculas, com fallback
+// para PNG quando o valor recebido esta vazio.
+inline QString normalizedExtension(const QString& extension)
+{
+    QString ext = extension.trimmed().toLower();
+    while (ext.startsWith('.')) ext.remove(0, 1);
+    return ext.isEmpty() ? QStringLiteral("png") : ext;
+}
+
+inline QString pathKey(const QString& path, bool caseInsensitive)
+{
+    return caseInsensitive ? path.toCaseFolded() : path;
+}
+
+inline bool defaultCaseInsensitivePaths()
+{
+#if defined(Q_OS_WIN) || defined(Q_OS_MACOS)
+    // NTFS e APFS sao case-insensitive por omissao. Em Linux o mesmo
+    // nome com caixa diferente sao ficheiros distintos.
+    return true;
+#else
+    return false;
+#endif
+}
 
 inline bool isGeneratedOutputName(const QFileInfo& fileInfo)
 {
-    return fileInfo.suffix().compare("png", Qt::CaseInsensitive) == 0
+    // Qualquer imagem gerada pelo lote (PNG, JPEG ou WebP) tem o
+    // sufixo _rembg. Ignorar todas evita reprocessar saidas antigas
+    // quando entrada e saida sao a mesma pasta.
+    return imageExts().contains(fileInfo.suffix().toLower())
         && generatedOutputName().match(
                fileInfo.completeBaseName()).hasMatch();
 }
@@ -45,11 +73,27 @@ inline bool isGeneratedOutputName(const QFileInfo& fileInfo)
 // em outputDir com sufixo _rembg. Se inputDir == outputDir, os
 // resultados gerados anteriormente (_rembg, _rembg_2, ...) sao
 // ignorados como entrada para nao reprocessar as proprias saidas.
-inline QList<Entry> build(const QDir& inputDir, const QDir& outputDir)
+//
+// outputExtension define a extensao dos resultados (png, jpg, webp...).
+// caseInsensitivePaths deve ser true em sistemas de ficheiros que nao
+// distinguem maiusculas de minusculas; nesses sistemas dois nomes-base
+// que so diferem na caixa colidiriam no mesmo ficheiro de saida.
+inline QList<Entry> build(
+    const QDir& inputDir, const QDir& outputDir,
+    const QString& outputExtension = QStringLiteral("png"),
+    bool caseInsensitivePaths = defaultCaseInsensitivePaths())
 {
+    const QString extension = normalizedExtension(outputExtension);
+    const auto comparablePath = [caseInsensitivePaths](const QString& path) {
+        const QFileInfo info(path);
+        const QString canonical = info.canonicalFilePath();
+        return pathKey(canonical.isEmpty() ? info.absoluteFilePath()
+                                           : canonical,
+                       caseInsensitivePaths);
+    };
     const bool outputIsInputDirectory =
-        QDir::cleanPath(inputDir.absolutePath())
-        == QDir::cleanPath(outputDir.absolutePath());
+        comparablePath(inputDir.absolutePath())
+        == comparablePath(outputDir.absolutePath());
 
     QList<Entry> entries;
     QSet<QString> reserved;
@@ -64,15 +108,17 @@ inline QList<Entry> build(const QDir& inputDir, const QDir& outputDir)
             continue;
 
         const QString outputBase = fileInfo.completeBaseName() + "_rembg";
-        QString outputPath = outputDir.absoluteFilePath(outputBase + ".png");
+        QString outputPath = outputDir.absoluteFilePath(
+            outputBase + "." + extension);
         for (int suffix = 2;
-             reserved.contains(outputPath)
+             reserved.contains(pathKey(outputPath, caseInsensitivePaths))
                  || QFileInfo::exists(outputPath);
              ++suffix) {
             outputPath = outputDir.absoluteFilePath(
-                outputBase + "_" + QString::number(suffix) + ".png");
+                outputBase + "_" + QString::number(suffix)
+                + "." + extension);
         }
-        reserved.insert(outputPath);
+        reserved.insert(pathKey(outputPath, caseInsensitivePaths));
 
         Entry entry;
         entry.inputPath = inputDir.absoluteFilePath(f);

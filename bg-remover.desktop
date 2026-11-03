@@ -1,8 +1,13 @@
 [Desktop Entry]
 Name=BG Remover
+GenericName=Background Remover
 Comment=Remove backgrounds from images using U²-Netp
-Exec=bg_remover_gui /usr/share/bg-remover/u2netp.onnx
+Exec=bg_remover_gui %f
+TryExec=bg_remover_gui
 Icon=bg-remover
 Terminal=false
 Type=Application
 Categories=Graphics;2DGraphics;
+Keywords=background;remove;cutout;transparency;image;photo;
+MimeType=image/png;image/jpeg;image/webp;image/bmp;image/tiff;
+StartupWMClass=bg_remover_gui

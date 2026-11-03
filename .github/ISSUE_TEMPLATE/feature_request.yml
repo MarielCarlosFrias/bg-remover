@@ -1,0 +1,50 @@
+name: Sugerir uma melhoria
+description: Proponha uma funcionalidade ou melhoria de usabilidade.
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Obrigado pela sugestão! Explique o problema antes da solução para
+        podermos avaliar alternativas.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problema ou necessidade
+      description: Que tarefa fica difícil hoje? Quem é afetado?
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Solução proposta
+      description: Como imagina a funcionalidade na interface ou no CLI?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternativas consideradas
+  - type: dropdown
+    id: area
+    attributes:
+      label: Área
+      options:
+        - Interface gráfica
+        - Processamento em lote
+        - Linha de comando
+        - Modelos / inferência
+        - Desempenho
+        - Empacotamento / instalação
+        - Documentação / tradução
+        - Outra
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Confirmações
+      options:
+        - label: Procurei issues existentes e não encontrei esta sugestão.
+          required: true

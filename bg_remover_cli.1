@@ -1,0 +1,86 @@
+.TH BG_REMOVER_CLI 1 "2026-11-03" "bg-remover 1.1.0" "User Commands"
+.SH NAME
+bg_remover_cli \- remove image backgrounds in batch
+.SH SYNOPSIS
+.B bg_remover_cli
+.RB [ \-o
+.IR output_directory ]
+.RB [ \-m
+.IR model.onnx ]
+.I input_directory
+.RI [ output_directory ]
+.RI [ model.onnx ]
+.SH DESCRIPTION
+.B bg_remover_cli
+loads an ONNX background-removal model and processes every supported
+image in
+.IR input_directory .
+Results are written as PNG files with the suffix
+.B _rembg
+and never overwrite existing files.
+.PP
+The model is loaded once and reused for the whole batch. Processing is
+done locally; no image data leaves the machine.
+.SH ARGUMENTS
+.TP
+.I input_directory
+Directory containing the images to process.
+.TP
+.I output_directory
+Directory for the results. Defaults to
+.B _rembg_output
+in the current directory.
+.TP
+.I model.onnx
+Path to an ONNX model. If omitted, the program searches for
+.B u2netp.onnx
+next to the executable, in the installation directory, in the models
+directory and in the current directory.
+.SH OPTIONS
+.TP
+.B \-h, \-\-help
+Show usage information and exit.
+.TP
+.B \-v, \-\-version
+Show the version and exit.
+.TP
+.BI \-o ", " \-\-output " " directory
+Write the results to
+.IR directory .
+Equivalent to the second positional argument.
+.TP
+.BI \-m ", " \-\-model " " model.onnx
+Use
+.IR model.onnx
+instead of the default model. Equivalent to the third positional
+argument.
+.SH EXAMPLES
+Process a folder with the default model:
+.PP
+.nf
+.RS
+bg_remover_cli ~/Pictures/input ~/Pictures/output
+.RE
+.fi
+.PP
+Use long options:
+.PP
+.nf
+.RS
+bg_remover_cli ~/Pictures/input --output ~/Pictures/output --model u2net.onnx
+.RE
+.fi
+.PP
+Use a specific model:
+.PP
+.nf
+.RS
+bg_remover_cli ~/Pictures/input ~/Pictures/output u2net.onnx
+.RE
+.fi
+.SH EXIT STATUS
+Returns 0 when every image was processed successfully. Returns 1 when
+the input/output directory is invalid, the model cannot be loaded, or at
+least one image fails.
+.SH SEE ALSO
+Project page: https://github.com/MarielCarlosFrias/bg-remover

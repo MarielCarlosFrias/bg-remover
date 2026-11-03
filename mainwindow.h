@@ -83,11 +83,13 @@ private slots:
     void editingDone();
     void onSaveFormatChanged(int index);
     void onUpdateCheckFinished();
+    void showUpdateBanner(const QString& version);
 
 private:
     struct SingleResult {
         QImage image;
         QString error;
+        quint64 generation = 0;
     };
 
     void setPreviewZoom(int percent);
@@ -97,12 +99,15 @@ private:
     void setResult(const QImage& img);
     void setUiBusy(bool busy);
     void finishBatch();
+    // Fecha a janela depois de a inferencia/lote em curso terminar.
+    void maybeCloseAfterJobs();
     void resetModel();
     void populateModelCombo();
     void restoreSettings();
     void saveSettings();
     void checkForUpdate();
     QVBoxLayout* workspaceLayout();
+    QVBoxLayout* mainLayout_ = nullptr;
     QString saveFormatFilter() const;
     QString saveFormatExtension() const;
     bool saveFormatIsAlphaCapable() const;
@@ -151,6 +156,7 @@ private:
 
     QString batchFolder_;
     QString batchOutputDir_;
+    QString batchOutputExtension_;
     QList<BatchPlan::Entry> batchPlan_;
     ProcessingOptions batchOptions_;
     int batchIndex_;
@@ -158,11 +164,22 @@ private:
     int batchErrors_;
     bool batchRunning_;
     bool batchCancelRequested_;
+    // Verdadeiro enquanto uma inferencia ou lote esta em curso. Os
+    // botoes sao desativados, mas os atalhos tambem precisam de ser
+    // bloqueados para nao salvar/copiar um resultado antigo.
+    bool isBusy_ = false;
+    // O utilizador tentou fechar durante uma inferencia/lote; o
+    // fecho e concluido quando o watcher correspondente terminar.
+    bool closeRequested_ = false;
     QColor customBgColor_;
     int previewZoomPercent_;
 
     QImage originalImage_;
     QImage resultImage_;
+    QString currentImagePath_;
+    // Muda sempre que uma imagem nova e carregada; resultados de
+    // inferencias antigas sao descartados em onRemoveFinished().
+    quint64 imageGeneration_ = 0;
     std::shared_ptr<ModelCache> modelCache_;
     QNetworkAccessManager* updateNam_ = nullptr;
     QString latestRemoteVersion_;

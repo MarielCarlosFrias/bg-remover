@@ -61,6 +61,8 @@ int main(int argc, char* argv[])
         const QString models =
             ModelPathResolver::userModelsDir();
         CHECK(!models.isEmpty(), "caso3: userModelsDir() nao e vazio");
+        CHECK(models.endsWith("/bg-remover/models"),
+              "caso3: userModelsDir() e canonico e nao depende do app");
         CHECK(models.contains(QDir::separator())
                   || !models.isEmpty(),
               "caso3: userModelsDir() tem forma de caminho");
@@ -70,6 +72,21 @@ int main(int argc, char* argv[])
         const QString r = ModelPathResolver::resolve("zzz_nada.onnx");
         CHECK(!r.isEmpty(), "caso3: resolucao estavel sem modelos instalados");
     }
+
+#ifdef Q_OS_MACOS
+    // ---- Caso 4: modelo dentro do .app ----
+    // A GUI vive em Contents/MacOS; o instalador coloca o modelo em
+    // Contents/Resources. O resolver tem de procurar ai.
+    {
+        const QStringList cands =
+            ModelPathResolver::candidates("mac_bundle_test.onnx");
+        const QString expected = QDir(
+            QCoreApplication::applicationDirPath())
+            .filePath("../Resources/mac_bundle_test.onnx");
+        CHECK(cands.contains(expected),
+              "caso4: Contents/Resources e um candidato no macOS");
+    }
+#endif
 
     QDir::setCurrent(QDir::homePath());
 

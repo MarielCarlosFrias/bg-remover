@@ -4,9 +4,12 @@
 #include <QWidget>
 #include <QCryptographicHash>
 #include <QFile>
+#include <QFutureWatcher>
 #include <QList>
 #include <QString>
 #include <memory>
+
+#include "modelvalidator.h"
 
 class QLabel;
 class QProgressBar;
@@ -38,21 +41,36 @@ private slots:
     void onDownloadProgress(qint64 received, qint64 total);
     void onReadyRead();
     void onDownloadFinished();
+    void onValidationFinished();
 
 private:
     struct CatalogEntry {
         QString fileName;     // ex.: "isnet-general-use.onnx"
         QString title;        // nome legivel
         QString description;  // para que serve
-        qint64 sizeBytes = 0; // aproximado, para display
+        qint64 sizeBytes = 0; // tamanho esperado (verificacao)
         QString url;
         QString sha256Hex;    // vazio = sem verificacao (so HTTPS+tamanho)
+    };
+
+    struct ValidationJob {
+        QString fileName;
+        QString path;
+        qint64 expectedSize = 0;
+        QString sha256Hex;
+        // Identidade do ficheiro no inicio do hash: se tamanho ou
+        // mtime mudarem, o resultado antigo nao pode ser aplicado.
+        qint64 fileSize = 0;
+        qint64 lastModifiedMs = 0;
     };
 
     static QList<CatalogEntry> catalog();
     CatalogEntry selectedEntry() const;
     void setDownloading(bool downloading);
     void updateButtonsState();
+    void startNextValidation();
+    void updateRowStatus(const ValidationJob& job,
+                         const ModelFileValidation& validation);
 
     QTreeWidget* tree_;
     QLabel* detailLabel_;
@@ -70,6 +88,14 @@ private:
     QString pendingFileName_;   // nome final do modelo em descarga
     QString pendingSha256Hex_;  // hash esperado (vazio = sem verificacao)
     qint64 pendingSizeBytes_ = 0; // tamanho esperado (0 = sem verificacao)
+
+    // Verificacao SHA256 em segundo plano: modelos de ~178 MB levam
+    // segundos, por isso o refresh da lista so verifica o tamanho e
+    // o hash corre numa fila (um modelo de cada vez).
+    QList<ValidationJob> validationQueue_;
+    ValidationJob currentValidation_;
+    QFutureWatcher<ModelFileValidation> validationWatcher_;
+    bool validationRunning_ = false;
 };
 
 #endif

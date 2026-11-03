@@ -1,7 +1,10 @@
 #include "imagepostprocessor.h"
 
+#include <QImageReader>
+#include <QImageWriter>
 #include <QPainter>
 #include <algorithm>
+#include <cmath>
 
 // Todas as operacoes trabalham em Format_RGBA8888, cujo canal alfa
 // fica no byte 3 de cada pixel. O acesso por scanline evita
@@ -42,7 +45,7 @@ QImage ImagePostProcessor::applyEdgeRefinement(
     const QImage& input, float intensity)
 {
     if (input.isNull() || intensity <= 0.0f) return input.copy();
-    const QImage result = input.convertToFormat(QImage::Format_RGBA8888);
+    QImage result = input.convertToFormat(QImage::Format_RGBA8888);
     QImage refined = result;
     const int width = result.width();
     const int height = result.height();
@@ -77,4 +80,11 @@ QImage ImagePostProcessor::compositeBackground(
     painter.drawImage(0, 0, input);
     painter.end();
     return result;
+}
+
+QImage ImagePostProcessor::loadImage(const QString& path)
+{
+    QImageReader reader(path);
+    reader.setAutoTransform(true);
+    return reader.read();
 }

@@ -1,6 +1,7 @@
 #include "modelmanager.h"
 #include "i18n.h"
 #include "modelpathresolver.h"
+#include "modelvalidator.h"
 
 #include <QCryptographicHash>
 #include <QDir>
@@ -14,8 +15,10 @@
 #include <QNetworkRequest>
 #include <QProgressBar>
 #include <QPushButton>
+#include <QStringList>
 #include <QTreeWidgetItem>
 #include <QVBoxLayout>
+#include <QtConcurrent/QtConcurrent>
 
 namespace {
 
@@ -26,6 +29,21 @@ QString formatSize(qint64 bytes)
     if (bytes >= 1024)
         return QString::number(bytes / 1024.0, 'f', 0) + " kB";
     return QString::number(bytes) + " B";
+}
+
+QString modelStateText(ModelFileState state)
+{
+    switch (state) {
+    case ModelFileState::Installed:
+        return TR("Instalado ✓", "Installed ✓");
+    case ModelFileState::Incomplete:
+        return TR("Incompleto", "Incomplete");
+    case ModelFileState::Corrupt:
+        return TR("Corrompido", "Corrupt");
+    case ModelFileState::Missing:
+        break;
+    }
+    return TR("Disponível", "Available");
 }
 
 } // namespace
@@ -117,6 +135,9 @@ ModelManagerWidget::ModelManagerWidget(QWidget* parent)
             this,         &ModelManagerWidget::deleteSelected);
     connect(btnRefresh_,  &QPushButton::clicked,
             this,         &ModelManagerWidget::refreshList);
+    connect(&validationWatcher_,
+            &QFutureWatcher<ModelFileValidation>::finished,
+            this, &ModelManagerWidget::onValidationFinished);
 
     refreshList();
     setDownloading(false);
@@ -195,17 +216,69 @@ void ModelManagerWidget::refreshList()
     const CatalogEntry selected = selectedEntry();
     const QString selectedFile = selected.fileName;
 
+    // A fila e reconstruida; a verificacao em curso (se houver)
+    // termina e so atualiza a linha se o caminho ainda for o mesmo.
+    validationQueue_.clear();
+
     tree_->clear();
-    const QDir dir(ModelPathResolver::userModelsDir());
     const QList<CatalogEntry> entries = catalog();
     for (const CatalogEntry& e : entries) {
         auto* item = new QTreeWidgetItem(tree_);
         item->setText(0, e.title);
         item->setText(1, formatSize(e.sizeBytes));
-        item->setText(2, QFile::exists(dir.absoluteFilePath(e.fileName))
-                             ? TR("Instalado ✓", "Installed ✓") : TR("Disponível", "Available"));
-        item->setToolTip(0, e.description + "\n" + e.fileName);
+        const QString installedPath =
+            ModelPathResolver::findUserModel(e.fileName);
+
+        // Verificacao rapida (tamanho) para a lista abrir sem
+        // bloquear: o SHA256 de modelos de ~178 MB corre depois,
+        // em segundo plano.
+        const ModelFileValidation quick = validateModelFile(
+            installedPath, e.sizeBytes, QString());
+        item->setText(2, modelStateText(quick.state));
+
+        QString tip = e.description + "\n"
+            + (installedPath.isEmpty() ? e.fileName : installedPath);
+        if (quick.state == ModelFileState::Incomplete) {
+            tip += "\n" + TR("Tamanho: %1 de %2",
+                             "Size: %1 of %2")
+                       .arg(formatSize(quick.actualSize),
+                            formatSize(e.sizeBytes));
+        } else if (quick.state == ModelFileState::Corrupt) {
+            tip += "\n" + TR("Tamanho inesperado: %1 (esperado %2)",
+                             "Unexpected size: %1 (expected %2)")
+                       .arg(formatSize(quick.actualSize),
+                            formatSize(e.sizeBytes));
+        } else if (quick.state == ModelFileState::Installed
+                   && !e.sha256Hex.isEmpty()) {
+            tip += "\n" + TR("A verificar integridade (SHA256)…",
+                             "Verifying integrity (SHA256)…");
+        }
+        item->setToolTip(0, tip);
+        item->setToolTip(2, tip);
+
         item->setData(0, Qt::UserRole, e.fileName);
+        item->setData(0, Qt::UserRole + 1, installedPath);
+        item->setData(0, Qt::UserRole + 2, e.sizeBytes);
+
+        if (quick.state == ModelFileState::Installed
+            && !e.sha256Hex.isEmpty()) {
+            const bool alreadyRunning =
+                validationRunning_
+                && currentValidation_.path == installedPath
+                && currentValidation_.expectedSize == e.sizeBytes;
+            if (!alreadyRunning) {
+                ValidationJob job;
+                job.fileName = e.fileName;
+                job.path = installedPath;
+                job.expectedSize = e.sizeBytes;
+                job.sha256Hex = e.sha256Hex;
+                const QFileInfo info(installedPath);
+                job.fileSize = info.size();
+                job.lastModifiedMs =
+                    info.lastModified().toMSecsSinceEpoch();
+                validationQueue_.append(job);
+            }
+        }
     }
 
     // Repõe a seleção anterior, se possível.
@@ -217,6 +290,7 @@ void ModelManagerWidget::refreshList()
         }
     }
     updateButtonsState();
+    startNextValidation();
 }
 
 void ModelManagerWidget::updateButtonsState()
@@ -225,6 +299,87 @@ void ModelManagerWidget::updateButtonsState()
     btnDownload_->setEnabled(hasSelection && !reply_);
     btnDelete_->setEnabled(hasSelection && !reply_);
     btnCancel_->setEnabled(reply_ != nullptr);
+}
+
+void ModelManagerWidget::startNextValidation()
+{
+    if (validationRunning_ || validationQueue_.isEmpty()) return;
+
+    currentValidation_ = validationQueue_.takeFirst();
+    validationRunning_ = true;
+    const ValidationJob job = currentValidation_;
+    validationWatcher_.setFuture(QtConcurrent::run([job]() {
+        return validateModelFile(job.path, job.expectedSize,
+                                 job.sha256Hex);
+    }));
+}
+
+void ModelManagerWidget::onValidationFinished()
+{
+    validationRunning_ = false;
+    ModelFileValidation validation = validationWatcher_.result();
+
+    // O ficheiro pode ter sido apagado ou substituido enquanto o
+    // hash corria. Comparar tamanho E mtime evita aplicar um hash
+    // antigo a um ficheiro novo do mesmo tamanho; nesse caso o
+    // estado atual (so tamanho) manda.
+    const QFileInfo info(currentValidation_.path);
+    const bool unchanged = info.exists()
+        && info.size() == currentValidation_.fileSize
+        && info.lastModified().toMSecsSinceEpoch()
+               == currentValidation_.lastModifiedMs;
+    const ModelFileValidation current = validateModelFile(
+        currentValidation_.path, currentValidation_.expectedSize,
+        QString());
+    if (!unchanged || current.state != ModelFileState::Installed)
+        validation = current;
+
+    updateRowStatus(currentValidation_, validation);
+    startNextValidation();
+}
+
+void ModelManagerWidget::updateRowStatus(
+    const ValidationJob& job,
+    const ModelFileValidation& validation)
+{
+    for (int i = 0; i < tree_->topLevelItemCount(); ++i) {
+        QTreeWidgetItem* item = tree_->topLevelItem(i);
+        if (item->data(0, Qt::UserRole).toString() != job.fileName)
+            continue;
+
+        // A lista pode ter sido reconstruida com outro caminho (ex.:
+        // modelo canonico criado entretanto); o resultado antigo nao
+        // se aplica a esse caminho.
+        if (item->data(0, Qt::UserRole + 1).toString() != job.path)
+            return;
+
+        item->setText(2, modelStateText(validation.state));
+        QString tip;
+        switch (validation.state) {
+        case ModelFileState::Installed:
+            tip = TR("Integridade verificada (SHA256).",
+                     "Integrity verified (SHA256).");
+            break;
+        case ModelFileState::Incomplete:
+            tip = TR("Ficheiro incompleto: %1 de %2.",
+                     "Incomplete file: %1 of %2.")
+                      .arg(formatSize(validation.actualSize),
+                           formatSize(job.expectedSize));
+            break;
+        case ModelFileState::Corrupt:
+            tip = TR("Ficheiro corrompido: o SHA256 ou o tamanho não "
+                     "corresponde ao esperado. Descarregue novamente.",
+                     "Corrupt file: SHA256 or size does not match the "
+                     "expected value. Download it again.");
+            break;
+        case ModelFileState::Missing:
+            tip = TR("Modelo não instalado.",
+                     "Model not installed.");
+            break;
+        }
+        item->setToolTip(2, tip);
+        return;
+    }
 }
 
 void ModelManagerWidget::setDownloading(bool downloading)
@@ -262,6 +417,7 @@ void ModelManagerWidget::downloadSelected()
         : new QCryptographicHash(QCryptographicHash::Sha256));
 
     QNetworkRequest request(QUrl(e.url));
+    request.setTransferTimeout(30000);
     request.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
                          QNetworkRequest::NoLessSafeRedirectPolicy);
     reply_ = nam_->get(request);
@@ -365,13 +521,29 @@ void ModelManagerWidget::onDownloadFinished()
         return;
     }
 
-    QFile::remove(finalPath);
+    // Nao apagar o modelo antigo antes de o novo estar no lugar: se
+    // o rename falhar, o utilizador ficaria sem nenhuma versao.
+    const QString backupPath = finalPath + ".old";
+    QFile::remove(backupPath);
+    const bool hadOld = QFile::exists(finalPath);
+    if (hadOld && !QFile::rename(finalPath, backupPath)) {
+        QFile::remove(partPath);
+        statusLabel_->setText(
+            TR("Erro: não foi possível substituir o modelo existente.",
+               "Error: could not replace the existing model."));
+        refreshList();
+        return;
+    }
+
     if (QFile::rename(partPath, finalPath)) {
+        if (hadOld) QFile::remove(backupPath);
         statusLabel_->setText(TR("Modelo instalado: ", "Model installed: ")
                               + finalPath);
         refreshList();
         emit modelsChanged(fileName);
     } else {
+        // Restaurar a versao anterior, se existia.
+        if (hadOld) QFile::rename(backupPath, finalPath);
         statusLabel_->setText(
             TR("Erro: não foi possível finalizar ",
                "Error: could not finalize ") + finalPath);
@@ -397,14 +569,36 @@ void ModelManagerWidget::deleteSelected()
         QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
     if (answer != QMessageBox::Yes) return;
 
-    const QString path = ModelPathResolver::userModelsDir()
-        + "/" + e.fileName;
-    if (QFile::remove(path)) {
-        statusLabel_->setText(TR("Removido: ", "Removed: ") + path);
+    const QStringList paths =
+        ModelPathResolver::findAllUserModels(e.fileName);
+    if (paths.isEmpty()) {
+        statusLabel_->setText(
+            TR("Modelo não instalado.", "Model not installed."));
+        return;
+    }
+
+    QStringList removed;
+    QStringList failed;
+    for (const QString& path : paths) {
+        if (QFile::remove(path))
+            removed << path;
+        else
+            failed << path;
+    }
+
+    QString message;
+    if (!removed.isEmpty()) {
+        message = TR("Removido: ", "Removed: ") + removed.join(", ");
+    }
+    if (!failed.isEmpty()) {
+        if (!message.isEmpty()) message += "\n";
+        message += TR("Não foi possível remover: ",
+                      "Could not remove: ") + failed.join(", ");
+    }
+    statusLabel_->setText(message);
+
+    if (!removed.isEmpty()) {
         refreshList();
         emit modelsChanged(e.fileName);
-    } else {
-        statusLabel_->setText(
-            TR("Não foi possível remover: ", "Could not remove: ") + path);
     }
 }

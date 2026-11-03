@@ -30,6 +30,8 @@ void MaskEditCanvas::setImage(
     editBuffer_ = originalRgba_.copy();
     undoStack_.clear();
     redoStack_.clear();
+    undoBytes_ = 0;
+    redoBytes_ = 0;
     renderCacheValid_ = false;
     painting_ = false;
     cursorPos_ = QPoint(-1, -1);
@@ -83,8 +85,8 @@ bool MaskEditCanvas::canRedo() const
 void MaskEditCanvas::undo()
 {
     if (undoStack_.isEmpty()) return;
-    redoStack_.push(editBuffer_.copy());
-    editBuffer_ = undoStack_.pop();
+    pushRedoImage(editBuffer_.copy());
+    editBuffer_ = popImage(undoStack_, undoBytes_);
     renderCacheValid_ = false;
     update();
     emit editingDone();
@@ -94,12 +96,43 @@ void MaskEditCanvas::undo()
 void MaskEditCanvas::redo()
 {
     if (redoStack_.isEmpty()) return;
-    undoStack_.push(editBuffer_.copy());
-    editBuffer_ = redoStack_.pop();
+    pushUndoImage(editBuffer_.copy());
+    editBuffer_ = popImage(redoStack_, redoBytes_);
     renderCacheValid_ = false;
     update();
     emit editingDone();
     emit availabilityChanged(canUndo(), canRedo());
+}
+
+void MaskEditCanvas::pushUndoImage(const QImage& image)
+{
+    undoStack_.push(image);
+    undoBytes_ += image.sizeInBytes();
+    trimStack(undoStack_, undoBytes_);
+}
+
+void MaskEditCanvas::pushRedoImage(const QImage& image)
+{
+    redoStack_.push(image);
+    redoBytes_ += image.sizeInBytes();
+    trimStack(redoStack_, redoBytes_);
+}
+
+QImage MaskEditCanvas::popImage(QStack<QImage>& stack, qint64& bytes)
+{
+    QImage image = stack.pop();
+    bytes -= image.sizeInBytes();
+    return image;
+}
+
+void MaskEditCanvas::trimStack(QStack<QImage>& stack, qint64& bytes)
+{
+    while (!stack.isEmpty()
+           && (stack.size() > kMaxUndoLevels
+               || bytes > kMaxUndoBytes)) {
+        const QImage oldest = stack.takeFirst();
+        bytes -= oldest.sizeInBytes();
+    }
 }
 
 void MaskEditCanvas::clearEdits()
@@ -108,10 +141,39 @@ void MaskEditCanvas::clearEdits()
     editBuffer_ = originalRgba_.copy();
     undoStack_.clear();
     redoStack_.clear();
+    undoBytes_ = 0;
+    redoBytes_ = 0;
     renderCacheValid_ = false;
     painting_ = false;
     cursorPos_ = QPoint(-1, -1);
     emit availabilityChanged(canUndo(), canRedo());
+    update();
+}
+
+void MaskEditCanvas::clearImage()
+{
+    originalImage_ = QImage();
+    originalRgba_ = QImage();
+    editBuffer_ = QImage();
+    undoStack_.clear();
+    redoStack_.clear();
+    undoBytes_ = 0;
+    redoBytes_ = 0;
+    renderCache_ = QImage();
+    renderCacheValid_ = false;
+    painting_ = false;
+    cursorPos_ = QPoint(-1, -1);
+    compareImage_ = QImage();
+    compareScaled_ = QImage();
+    compareScaledSize_ = QSize();
+
+    // setDisplaySize() fixa minimo e maximo no tamanho do ultimo
+    // resultado; ao limpar, o canvas volta ao tamanho inicial.
+    setMinimumSize(320, 240);
+    setMaximumSize(QWIDGETSIZE_MAX, QWIDGETSIZE_MAX);
+    resize(320, 240);
+
+    emit availabilityChanged(false, false);
     update();
 }
 
@@ -177,6 +239,7 @@ QRect MaskEditCanvas::getPixmapRect() const
 QPoint MaskEditCanvas::widgetToImage(
     const QPoint& wgt) const
 {
+    if (editBuffer_.isNull()) return QPoint(-1, -1);
     QRect pr = getPixmapRect();
     if (!pr.contains(wgt)) return QPoint(-1, -1);
     float scale = scaleFactor();
@@ -369,10 +432,9 @@ void MaskEditCanvas::mousePressEvent(
     if (!painting_) {
         // Estado anterior a este traco entra na pilha de undo; o redo
         // e invalidado (comportamento padrao de editores).
-        undoStack_.push(editBuffer_.copy());
-        if (undoStack_.size() > kMaxUndoLevels)
-            undoStack_.removeFirst();
+        pushUndoImage(editBuffer_.copy());
         redoStack_.clear();
+        redoBytes_ = 0;
         painting_ = true;
     }
     lastPoint_ = event->pos();

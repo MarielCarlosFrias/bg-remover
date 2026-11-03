@@ -23,6 +23,8 @@ public:
     void undo();
     void redo();
     void clearEdits();
+    // Limpa a imagem e repoe o canvas vazio (usado ao abrir outra imagem).
+    void clearImage();
     bool canUndo() const;
     bool canRedo() const;
 
@@ -62,6 +64,10 @@ private:
                                         const QColor& bgColor);
     int dividerX() const;
     void invalidateScaledCaches();
+    void pushUndoImage(const QImage& image);
+    void pushRedoImage(const QImage& image);
+    static QImage popImage(QStack<QImage>& stack, qint64& bytes);
+    static void trimStack(QStack<QImage>& stack, qint64& bytes);
 
     QImage originalImage_;
     QImage originalRgba_;   // originalImage_ normalizado em RGBA8888
@@ -74,10 +80,14 @@ private:
     QPoint cursorPos_;
     QStack<QImage> undoStack_;
     QStack<QImage> redoStack_;
+    qint64 undoBytes_ = 0;
+    qint64 redoBytes_ = 0;
     static constexpr int kMaxUndoLevels = 10;
+    // Limite de memoria do historico (nao apenas numero de niveis):
+    // fotos grandes em RGBA ocupam dezenas/centenas de MB por nivel.
+    static constexpr qint64 kMaxUndoBytes = 256LL * 1024 * 1024;
     QImage renderCache_;        // composicao xadrez/fundo + alpha em cache
     bool renderCacheValid_ = false;
-    QSize renderCacheSize_;     // tamanho para o qual o cache e valido
 
     bool compareEnabled_ = false;
     qreal compareRatio_ = 0.5;

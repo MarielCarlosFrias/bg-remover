@@ -11,6 +11,7 @@ struct ProcessingOptions {
     bool refineEdges = false;
     float edgeRefinementIntensity = 0.5f;
     QColor backgroundColor;
+    QString outputFormat; // "png", "jpg", "webp" - formato de saida
 };
 
 #endif

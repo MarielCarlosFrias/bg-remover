@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.MarielCarlosFrias.BGRemover</id>
+  <metadata_license>MIT</metadata_license>
+  <project_license>MIT</project_license>
+  <name>BG Remover</name>
+  <summary>Remove image backgrounds locally</summary>
+  <summary xml:lang="pt-BR">Remova fundos de imagens localmente</summary>
+
+  <description>
+    <p>
+      BG Remover removes backgrounds from images using U²-Net ONNX models
+      that run entirely on your computer. Images are never uploaded.
+    </p>
+    <p>
+      The desktop application includes mask editing with restore/erase
+      brushes, before/after comparison, PNG/JPEG/WebP export and batch
+      processing. A command-line tool is included for automation.
+    </p>
+    <p xml:lang="pt-BR">
+      O BG Remover remove o fundo de imagens com modelos ONNX U²-Net que
+      são executados inteiramente no seu computador. As imagens nunca são
+      enviadas para serviços externos.
+    </p>
+    <p xml:lang="pt-BR">
+      O aplicativo inclui edição da máscara com pincéis Restaurar/Apagar,
+      comparação antes/depois, exportação em PNG/JPEG/WebP e processamento
+      em lote. Também inclui uma ferramenta de linha de comando para
+      automação.
+    </p>
+  </description>
+
+  <launchable type="desktop-id">bg-remover.desktop</launchable>
+  <url type="homepage">https://github.com/MarielCarlosFrias/bg-remover</url>
+  <url type="bugtracker">https://github.com/MarielCarlosFrias/bg-remover/issues</url>
+  <url type="vcs-browser">https://github.com/MarielCarlosFrias/bg-remover</url>
+  <url type="contribute">https://github.com/MarielCarlosFrias/bg-remover/blob/main/CONTRIBUTING.md</url>
+
+  <developer id="github.com.marielcarlosfrias">
+    <name>MarielCarlosFrias</name>
+  </developer>
+
+  <categories>
+    <category>Graphics</category>
+    <category>2DGraphics</category>
+  </categories>
+
+  <keywords>
+    <keyword>background</keyword>
+    <keyword>remove</keyword>
+    <keyword>cutout</keyword>
+    <keyword>transparency</keyword>
+    <keyword>image</keyword>
+    <keyword>photo</keyword>
+  </keywords>
+
+  <screenshots>
+    <screenshot type="default">
+      <image type="source">https://raw.githubusercontent.com/MarielCarlosFrias/bg-remover/main/docs/images/bg-remover-editor.png</image>
+      <caption>Editor with the original image and the transparent result</caption>
+      <caption xml:lang="pt-BR">Editor com a imagem original e o resultado transparente</caption>
+    </screenshot>
+  </screenshots>
+
+  <releases>
+    <release version="1.1.0" date="2026-11-01"/>
+  </releases>
+
+  <content_rating type="oars-1.1"/>
+</component>

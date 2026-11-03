@@ -85,10 +85,12 @@ QString stylesheet(bool dark)
     q += "QLabel#appSubtitle { font-size: 12px; }\n";
     q += "QLabel#imageName { font-weight: 600; }\n";
     q += "QLabel#workspaceHint { font-size: 12px; }\n";
-    q += QString("QLabel#viewModeActive { background: %1;"
-                 " border: 1px solid %2; border-radius: 7px;"
-                 " padding: 6px 10px; color: %3; font-size: 12px;"
-                 " font-weight: 600; }\n").arg(hover, border, text);
+    q += "QPushButton#viewModeActive { padding: 6px 10px;"
+         " font-size: 12px; }\n";
+    q += QString("QPushButton#viewModeActive:checked { background: %1;"
+                 " border: 1px solid %1; border-radius: 7px;"
+                 " padding: 6px 10px; color: %2; font-size: 12px;"
+                 " font-weight: 600; }\n").arg(accent, accentTxt);
     q += QString("QLabel#zoomLabel { min-width: 42px; color: %1;"
                  " font-size: 12px; qproperty-alignment: AlignCenter; }\n")
              .arg(muted);

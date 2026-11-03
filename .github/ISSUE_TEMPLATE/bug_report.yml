@@ -1,0 +1,76 @@
+name: Relatar um bug
+description: Informe um comportamento inesperado no BG Remover.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Obrigado por ajudar a melhorar o BG Remover. Preencha o máximo de
+        informação possível. Para vulnerabilidades, use o canal privado
+        descrito em SECURITY.md.
+  - type: input
+    id: version
+    attributes:
+      label: Versão do BG Remover
+      description: Aparece no título da janela, em `--version` ou na release.
+      placeholder: "1.1.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Sistema
+      options:
+        - Linux (DEB)
+        - Linux (AppImage)
+        - Windows x64
+        - macOS (Intel)
+        - macOS (Apple Silicon)
+        - Compilado do código
+    validations:
+      required: true
+  - type: input
+    id: qt
+    attributes:
+      label: Versão do Qt (se compilou do código)
+      placeholder: "6.7.3"
+  - type: textarea
+    id: steps
+    attributes:
+      label: Passos para reproduzir
+      description: Inclua a imagem/modelo usado, se possível, sem dados pessoais.
+      placeholder: |
+        1. Abrir o aplicativo
+        2. Carregar ...
+        3. Clicar em ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Comportamento esperado
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Comportamento observado
+      description: Inclua mensagens de erro ou o log da aba de processamento.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs e informações adicionais
+      description: Se aplicável, cole a saída do terminal/console.
+      render: shell
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Confirmações
+      options:
+        - label: Procurei issues existentes e não encontrei este problema.
+          required: true
+        - label: Estou a usar a versão mais recente disponível.
+          required: true

@@ -2,6 +2,7 @@
 /build/
 /build-*/
 /cmake-build-*/
+/_CPack_Packages/
 /.qt/
 *.o
 *.obj
@@ -19,6 +20,16 @@
 # ONNX Runtime extraido (dependencia externa)
 onnxruntime-linux-x64-*/
 onnxruntime-win-x64-*/
+onnxruntime-osx-*/
+
+# macOS: Qt instalado por aqtinstall, venv e ZIP de release
+/Qt/
+/.venv/
+/dist/
+.DS_Store
+
+# AppImage gerado localmente
+*.AppImage
 
 # Saidas e imagens locais
 /_rembg/
