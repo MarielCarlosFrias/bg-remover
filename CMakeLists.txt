@@ -80,7 +80,11 @@ if(BG_REMOVER_BUNDLE_MODELS AND NOT EXISTS "${CMAKE_SOURCE_DIR}/u2netp.onnx")
         "BG_REMOVER_BUNDLE_MODELS esta ativo, mas u2netp.onnx nao existe. "
         "Baixe o modelo antes de gerar o pacote.")
 endif()
-include_directories("${ONNX_DIR}/include")
+include_directories(
+    "${ONNX_DIR}/include"
+    "${CMAKE_SOURCE_DIR}/src/core"
+    "${CMAKE_SOURCE_DIR}/src/gui"
+)
 
 if(NOT EXISTS "${ONNX_DIR}/include/onnxruntime_cxx_api.h")
     message(FATAL_ERROR
@@ -121,28 +125,28 @@ if(WIN32 AND NOT EXISTS "${ONNX_RUNTIME_PROVIDER_LIBRARY}")
 endif()
 
 add_executable(bg_remover_gui
-    main.cpp
-    mainwindow.cpp
-    mainwindow.h
-    i18n.h
-    maskeditcanvas.cpp
-    maskeditcanvas.h
-    helpwidget.cpp
-    helpwidget.h
-    imagepostprocessor.cpp
-    imagepostprocessor.h
-    modelmanager.cpp
-    modelmanager.h
-    modelpathresolver.cpp
-    modelpathresolver.h
-    modelvalidator.cpp
-    modelvalidator.h
-    processingoptions.h
-    apptheme.cpp
-    apptheme.h
-    batchplan.h
-    backgroundremover.cpp
-    backgroundremover.h)
+    src/gui/main.cpp
+    src/gui/mainwindow.cpp
+    src/gui/mainwindow.h
+    src/gui/maskeditcanvas.cpp
+    src/gui/maskeditcanvas.h
+    src/gui/helpwidget.cpp
+    src/gui/helpwidget.h
+    src/gui/apptheme.cpp
+    src/gui/apptheme.h
+    src/core/i18n.h
+    src/core/imagepostprocessor.cpp
+    src/core/imagepostprocessor.h
+    src/core/modelmanager.cpp
+    src/core/modelmanager.h
+    src/core/modelpathresolver.cpp
+    src/core/modelpathresolver.h
+    src/core/modelvalidator.cpp
+    src/core/modelvalidator.h
+    src/core/processingoptions.h
+    src/core/batchplan.h
+    src/core/backgroundremover.cpp
+    src/core/backgroundremover.h)
 target_link_libraries(bg_remover_gui
     Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Network Qt6::Concurrent
     onnxruntime)
@@ -169,18 +173,18 @@ elseif(NOT WIN32)
 endif()
 
 add_executable(bg_remover_cli
-    main_cli.cpp
-    i18n.h
-    batchprocessor.cpp
-    batchprocessor.h
-    batchplan.h
-    imagepostprocessor.cpp
-    imagepostprocessor.h
-    modelpathresolver.cpp
-    modelpathresolver.h
-    processingoptions.h
-    backgroundremover.cpp
-    backgroundremover.h)
+    src/cli/main_cli.cpp
+    src/core/i18n.h
+    src/core/batchprocessor.cpp
+    src/core/batchprocessor.h
+    src/core/batchplan.h
+    src/core/imagepostprocessor.cpp
+    src/core/imagepostprocessor.h
+    src/core/modelpathresolver.cpp
+    src/core/modelpathresolver.h
+    src/core/processingoptions.h
+    src/core/backgroundremover.cpp
+    src/core/backgroundremover.h)
 target_link_libraries(bg_remover_cli
     Qt6::Core Qt6::Gui onnxruntime)
 target_compile_definitions(bg_remover_cli PRIVATE
@@ -220,41 +224,41 @@ endif()
 
 enable_testing()
 add_executable(test_postprocessing
-    test_postprocessing.cpp
-    imagepostprocessor.cpp
-    imagepostprocessor.h
-    processingoptions.h)
+    tests/test_postprocessing.cpp
+    src/core/imagepostprocessor.cpp
+    src/core/imagepostprocessor.h
+    src/core/processingoptions.h)
 target_link_libraries(test_postprocessing Qt6::Core Qt6::Gui)
 add_test(NAME postprocessing_test COMMAND test_postprocessing)
 
 add_executable(test_batchplan
-    test_batchplan.cpp
-    batchplan.h)
+    tests/test_batchplan.cpp
+    src/core/batchplan.h)
 target_link_libraries(test_batchplan Qt6::Core)
 add_test(NAME batchplan_test COMMAND test_batchplan)
 
 add_executable(test_modelpath
-    test_modelpath.cpp
-    modelpathresolver.cpp
-    modelpathresolver.h)
+    tests/test_modelpath.cpp
+    src/core/modelpathresolver.cpp
+    src/core/modelpathresolver.h)
 target_link_libraries(test_modelpath Qt6::Core)
 add_test(NAME modelpath_test COMMAND test_modelpath)
 
 add_executable(test_modelvalidator
-    test_modelvalidator.cpp
-    modelvalidator.cpp
-    modelvalidator.h)
+    tests/test_modelvalidator.cpp
+    src/core/modelvalidator.cpp
+    src/core/modelvalidator.h)
 target_link_libraries(test_modelvalidator Qt6::Core)
 add_test(NAME modelvalidator_test COMMAND test_modelvalidator)
 
 add_executable(test_savepath
-    test_savepath.cpp
-    savepath.h)
+    tests/test_savepath.cpp
+    src/core/savepath.h)
 target_link_libraries(test_savepath Qt6::Core)
 add_test(NAME savepath_test COMMAND test_savepath)
 
 add_executable(test_imageformats
-    test_imageformats.cpp)
+    tests/test_imageformats.cpp)
 target_link_libraries(test_imageformats Qt6::Core Qt6::Gui)
 add_test(NAME imageformats_test COMMAND test_imageformats)
 
@@ -263,28 +267,28 @@ add_test(NAME imageformats_test COMMAND test_imageformats)
 # corre uma inferencia completa. Sem modelo, o caso de inferencia
 # valida apenas a recuperacao da UI.
 add_executable(test_gui
-    test_gui.cpp
-    mainwindow.cpp
-    mainwindow.h
-    i18n.h
-    maskeditcanvas.cpp
-    maskeditcanvas.h
-    helpwidget.cpp
-    helpwidget.h
-    imagepostprocessor.cpp
-    imagepostprocessor.h
-    modelmanager.cpp
-    modelmanager.h
-    modelpathresolver.cpp
-    modelpathresolver.h
-    modelvalidator.cpp
-    modelvalidator.h
-    processingoptions.h
-    apptheme.cpp
-    apptheme.h
-    batchplan.h
-    backgroundremover.cpp
-    backgroundremover.h)
+    tests/test_gui.cpp
+    src/gui/mainwindow.cpp
+    src/gui/mainwindow.h
+    src/gui/maskeditcanvas.cpp
+    src/gui/maskeditcanvas.h
+    src/gui/helpwidget.cpp
+    src/gui/helpwidget.h
+    src/gui/apptheme.cpp
+    src/gui/apptheme.h
+    src/core/i18n.h
+    src/core/imagepostprocessor.cpp
+    src/core/imagepostprocessor.h
+    src/core/modelmanager.cpp
+    src/core/modelmanager.h
+    src/core/modelpathresolver.cpp
+    src/core/modelpathresolver.h
+    src/core/modelvalidator.cpp
+    src/core/modelvalidator.h
+    src/core/processingoptions.h
+    src/core/batchplan.h
+    src/core/backgroundremover.cpp
+    src/core/backgroundremover.h)
 target_link_libraries(test_gui
     Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Network Qt6::Concurrent
     onnxruntime)
@@ -306,16 +310,16 @@ set_tests_properties(gui_test_en PROPERTIES
         "QT_QPA_PLATFORM=offscreen;BG_REMOVER_LANG=en;BG_REMOVER_NO_UPDATE_CHECK=1")
 
 add_executable(test_batchprocessor
-    test_batchprocessor.cpp
-    batchprocessor.cpp
-    batchprocessor.h
-    batchplan.h
-    imagepostprocessor.cpp
-    imagepostprocessor.h
-    processingoptions.h
-    backgroundremover.cpp
-    backgroundremover.h
-    i18n.h)
+    tests/test_batchprocessor.cpp
+    src/core/batchprocessor.cpp
+    src/core/batchprocessor.h
+    src/core/batchplan.h
+    src/core/imagepostprocessor.cpp
+    src/core/imagepostprocessor.h
+    src/core/processingoptions.h
+    src/core/backgroundremover.cpp
+    src/core/backgroundremover.h
+    src/core/i18n.h)
 target_link_libraries(test_batchprocessor
     Qt6::Core Qt6::Gui onnxruntime)
 add_test(NAME batchprocessor_test
@@ -326,9 +330,9 @@ if(NOT EXISTS "${CMAKE_SOURCE_DIR}/u2netp.onnx")
 endif()
 
 add_executable(test_inference
-    test_inference.cpp
-    backgroundremover.cpp
-    backgroundremover.h)
+    tests/test_inference.cpp
+    src/core/backgroundremover.cpp
+    src/core/backgroundremover.h)
 target_link_libraries(test_inference
     Qt6::Core Qt6::Gui onnxruntime)
 add_test(NAME inference_test
@@ -389,9 +393,9 @@ elseif(APPLE)
         RENAME LICENSE.onnxruntime.txt OPTIONAL)
     install(FILES "${ONNX_DIR}/ThirdPartyNotices.txt"
         DESTINATION "bg_remover_gui.app/Contents/Resources" OPTIONAL)
-    install(FILES "${CMAKE_SOURCE_DIR}/bg-remover.svg"
+    install(FILES "${CMAKE_SOURCE_DIR}/assets/bg-remover.svg"
         DESTINATION "bg_remover_gui.app/Contents/Resources")
-    install(FILES "${CMAKE_SOURCE_DIR}/bg_remover_cli.1"
+    install(FILES "${CMAKE_SOURCE_DIR}/assets/bg_remover_cli.1"
         DESTINATION share/man/man1)
     if(BG_REMOVER_BUNDLE_MODELS)
         install(FILES "${CMAKE_SOURCE_DIR}/u2netp.onnx"
@@ -426,14 +430,14 @@ else()
         install(FILES "${CMAKE_SOURCE_DIR}/u2net.onnx"
             DESTINATION share/bg-remover OPTIONAL)
     endif()
-    install(FILES "${CMAKE_SOURCE_DIR}/bg-remover.desktop"
+    install(FILES "${CMAKE_SOURCE_DIR}/assets/bg-remover.desktop"
         DESTINATION share/applications)
     install(FILES
-        "${CMAKE_SOURCE_DIR}/io.github.MarielCarlosFrias.BGRemover.metainfo.xml"
+        "${CMAKE_SOURCE_DIR}/assets/io.github.MarielCarlosFrias.BGRemover.metainfo.xml"
         DESTINATION share/metainfo)
-    install(FILES "${CMAKE_SOURCE_DIR}/bg-remover.svg"
+    install(FILES "${CMAKE_SOURCE_DIR}/assets/bg-remover.svg"
         DESTINATION share/icons/hicolor/scalable/apps)
-    install(FILES "${CMAKE_SOURCE_DIR}/bg_remover_cli.1"
+    install(FILES "${CMAKE_SOURCE_DIR}/assets/bg_remover_cli.1"
         DESTINATION share/man/man1)
 
     set(CPACK_GENERATOR "DEB")

@@ -206,21 +206,45 @@ O bundle inclui Qt, ONNX Runtime e o modelo leve; o CLI fica em `Contents/MacOS`
 
 ```text
 bg-remover/
-├── .github/                  # CI, releases, templates e Dependabot
-├── CONTRIBUTING.md / SECURITY.md / CHANGELOG.md
-├── backgroundremover.*       # Inferência ONNX e geração da máscara
-├── imagepostprocessor.*      # Filtros alpha e composição do fundo
-├── batchprocessor.* + batchplan.h  # Processamento de diretórios (CLI + GUI)
-├── mainwindow.*              # Interface Qt (abas, lote, zoom)
-├── maskeditcanvas.*          # Pincel e edição da máscara
-├── modelmanager.*            # Aba Modelos: catálogo e download
-├── modelvalidator.*          # Verificação de tamanho/SHA256 dos modelos
-├── savepath.h                # Extensão coerente com o formato de saída
-├── helpwidget.*              # Aba Ajuda
-├── apptheme.*                # Temas escuro/claro
-├── main.cpp / main_cli.cpp   # Arranque da GUI e do CLI
-├── bg-remover.desktop + *.metainfo.xml + *.1  # Integração Linux
-└── test_*.cpp                # Testes automatizados
+├── src/
+│   ├── core/                        # Motor independente de UI
+│   │   ├── backgroundremover.cpp/.h # Inferência ONNX e geração da máscara
+│   │   ├── imagepostprocessor.cpp/.h# Filtros alpha, Chroma Key e composição
+│   │   ├── batchprocessor.cpp/.h    # Processamento em lote
+│   │   ├── batchplan.h              # Plano de arquivos e validações
+│   │   ├── modelmanager.cpp/.h      # Catálogo e download de modelos
+│   │   ├── modelvalidator.cpp/.h    # Verificação de integridade/SHA256
+│   │   ├── modelpathresolver.cpp/.h # Resolução de caminhos nos vários SOs
+│   │   ├── savepath.h               # Extensão coerente com formato de saída
+│   │   ├── processingoptions.h      # Opções unificadas de processamento
+│   │   └── i18n.h                   # Deteção e mensagens multilíngue
+│   ├── gui/                         # Interface gráfica (Qt6 Widgets)
+│   │   ├── main.cpp                 # Ponto de entrada da GUI
+│   │   ├── mainwindow.cpp/.h        # Janela principal, abas e controlos
+│   │   ├── maskeditcanvas.cpp/.h    # Tela de retoque manual com pincel
+│   │   ├── helpwidget.cpp/.h        # Aba Ajuda integrada
+│   │   └── apptheme.cpp/.h          # Temas escuro/claro e estilos
+│   └── cli/                         # Linha de comandos (CLI)
+│       └── main_cli.cpp             # Ponto de entrada do executável CLI
+├── tests/                           # Testes unitários automatizados (CTest)
+│   ├── test_postprocessing.cpp      # Testes de filtros e remoção por cor
+│   ├── test_batchprocessor.cpp      # Teste do processamento em lote
+│   ├── test_batchplan.cpp           # Teste de planeamento de ficheiros
+│   ├── test_modelpath.cpp           # Teste de resolução de caminhos
+│   ├── test_modelvalidator.cpp      # Teste de validação de modelos
+│   ├── test_savepath.cpp            # Teste de caminhos de salvamento
+│   ├── test_imageformats.cpp        # Teste de formatos de imagem
+│   ├── test_inference.cpp           # Teste de inferência do modelo leve
+│   └── test_gui.cpp                 # Teste de fumo da interface offscreen
+├── assets/                          # Ficheiros de integração com o sistema
+│   ├── bg-remover.svg               # Ícone vetorial da aplicação
+│   ├── bg-remover.desktop           # Atalho de lançador Linux
+│   ├── bg_remover_cli.1             # Manual UNIX (man page)
+│   └── io.github.MarielCarlosFrias.BGRemover.metainfo.xml # Metadados AppStream
+├── docs/                            # Documentação e capturas de ecrã
+├── .github/                         # Workflows de CI/CD e Releases
+├── CMakeLists.txt                   # Configuração e regras de compilação
+└── README.md                        # Documentação principal
 ```
 
 Os modelos, o runtime extraído, os diretórios de build e os resultados locais não entram no Git. Os releases automatizados obtêm o runtime e o modelo leve, verificam os respectivos checksums e criam os pacotes distribuíveis.
