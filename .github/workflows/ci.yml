@@ -106,10 +106,14 @@ jobs:
           test -x "$APP/Contents/MacOS/bg_remover_gui"
           test -x "$APP/Contents/MacOS/bg_remover_cli"
           test -f "$APP/Contents/Frameworks/libonnxruntime.dylib"
-          ls "$APP/Contents/Frameworks"/libonnxruntime*.dylib
+          ls -l "$APP/Contents/Frameworks"/libonnxruntime*.dylib
+          echo "=== Dependencias de bg_remover_gui ==="
+          otool -L "$APP/Contents/MacOS/bg_remover_gui"
+          echo "=== Dependencias de bg_remover_cli ==="
+          otool -L "$APP/Contents/MacOS/bg_remover_cli"
           otool -L "$APP/Contents/MacOS/bg_remover_gui" | grep -q onnxruntime
           otool -L "$APP/Contents/MacOS/bg_remover_cli" | grep -q onnxruntime
-          otool -L "$APP/Contents/MacOS/bg_remover_cli" | grep -q '@executable_path/../Frameworks'
+          otool -l "$APP/Contents/MacOS/bg_remover_cli" | grep -q '@executable_path/../Frameworks'
           ! otool -L "$APP/Contents/MacOS/bg_remover_gui" | grep -q "$QT_DIR"
           ! otool -L "$APP/Contents/MacOS/bg_remover_cli" | grep -q "$QT_DIR"
           "$APP/Contents/MacOS/bg_remover_cli" --version
