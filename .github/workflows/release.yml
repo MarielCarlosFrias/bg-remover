@@ -11,7 +11,7 @@ jobs:
   linux-deb:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - run: sudo apt-get update && sudo apt-get install -y cmake ninja-build qt6-base-dev qt6-image-formats-plugins
       - name: Prepare ONNX Runtime and model (com retry)
         run: |
@@ -42,7 +42,7 @@ jobs:
     # grande maioria das distros ativas.
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Install dependencies
         run: |
           sudo apt-get update
@@ -101,7 +101,7 @@ jobs:
   windows-zip:
     runs-on: windows-2022
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Install aqt (pip)
         shell: pwsh
         run: |
@@ -132,7 +132,7 @@ jobs:
   macos-zip:
     runs-on: macos-14
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Install aqt and Qt 6.7.3
         run: |
           python3 -m venv "$RUNNER_TEMP/aqt"
@@ -207,7 +207,7 @@ jobs:
     if: ${{ always() && !cancelled() && contains(needs.*.result, 'success') }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/download-artifact@v4
         with:
           path: dist
