@@ -88,6 +88,10 @@ private slots:
     void autoCropResult();
     void presetChanged(int index);
     void startDragOut();
+    void removalMethodChanged(int index);
+    void pickKeyColor();
+    void autoDetectKeyColor();
+    void removeByColor();
 
 private:
     struct SingleResult {
@@ -96,6 +100,7 @@ private:
         quint64 generation = 0;
     };
 
+    void updateKeyColorButton();
     void setPreviewZoom(int percent);
     void zoomAt(int percent, const QPoint& globalPos);
     void updatePreviewZoom();
@@ -154,6 +159,16 @@ private:
     QCheckBox* noiseCheckBox_;
     QCheckBox* stickerCheckBox_;
     QCheckBox* shadowCheckBox_;
+    QComboBox* removalMethodCombo_;
+    QWidget* aiRemovalWidget_;
+    QWidget* colorRemovalWidget_;
+    QPushButton* btnKeyColorSample_;
+    QPushButton* btnAutoDetectKeyColor_;
+    QSpinBox* colorToleranceSpin_;
+    QCheckBox* colorContiguousCheckBox_;
+    QCheckBox* colorPixelArtCheckBox_;
+    QPushButton* btnRemoveByColor_;
+    QColor keyColor_ = QColor(255, 0, 255);
     QString customBgImagePath_;
     QComboBox* saveFormatCombo_;
     QLabel* updateBanner_;

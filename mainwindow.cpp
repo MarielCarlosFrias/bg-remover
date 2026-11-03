@@ -140,6 +140,16 @@ MainWindow::MainWindow(QWidget* parent, const QString& modelPath)
       noiseCheckBox_(new QCheckBox(TR("Limpar ruído", "Clean noise"))),
       stickerCheckBox_(new QCheckBox(TR("Contorno (Sticker)", "Sticker outline"))),
       shadowCheckBox_(new QCheckBox(TR("Sombra suave", "Drop shadow"))),
+      removalMethodCombo_(new QComboBox),
+      aiRemovalWidget_(new QWidget),
+      colorRemovalWidget_(new QWidget),
+      btnKeyColorSample_(new QPushButton),
+      btnAutoDetectKeyColor_(new QPushButton(TR("Detectar fundo", "Detect background"))),
+      colorToleranceSpin_(new QSpinBox),
+      colorContiguousCheckBox_(new QCheckBox(TR("Apenas conectado (Varinha)", "Connected only (Wand)"))),
+      colorPixelArtCheckBox_(new QCheckBox(TR("Modo Pixel Art (bordas nítidas)", "Pixel Art mode (sharp edges)"))),
+      btnRemoveByColor_(new QPushButton(TR("Remover cor de fundo", "Remove background color"))),
+      keyColor_(QColor(255, 0, 255)),
       saveFormatCombo_(new QComboBox),
       updateBanner_(new QLabel),
       progressBar_(new QProgressBar),
@@ -397,6 +407,15 @@ MainWindow::MainWindow(QWidget* parent, const QString& modelPath)
     };
     inspectorLayout->addWidget(sectionTitle(
         TR("Remover fundo", "Remove background")));
+
+    removalMethodCombo_->addItem(TR("🧠 IA (Rede neural)", "🧠 AI (Neural network)"));
+    removalMethodCombo_->addItem(TR("🎨 Cor / Chroma Key (Pixel Art)", "🎨 Color / Chroma Key (Pixel Art)"));
+    inspectorLayout->addWidget(removalMethodCombo_);
+
+    // Modo 1: IA
+    auto* aiLayout = new QVBoxLayout(aiRemovalWidget_);
+    aiLayout->setContentsMargins(0, 0, 0, 0);
+    aiLayout->setSpacing(7);
     auto* modelForm = new QFormLayout;
     modelForm->setLabelAlignment(Qt::AlignLeft | Qt::AlignVCenter);
     modelForm->setRowWrapPolicy(QFormLayout::WrapAllRows);
@@ -405,10 +424,54 @@ MainWindow::MainWindow(QWidget* parent, const QString& modelPath)
     modelPathLayout->addWidget(modelPathEdit_);
     modelPathLayout->addWidget(btnLoadModel_);
     modelForm->addRow(TR("Arquivo", "File"), modelPathLayout);
-    inspectorLayout->addLayout(modelForm);
+    aiLayout->addLayout(modelForm);
     btnRemove_->setObjectName("primaryAction");
     btnRemove_->setMinimumHeight(38);
-    inspectorLayout->addWidget(btnRemove_);
+    aiLayout->addWidget(btnRemove_);
+    inspectorLayout->addWidget(aiRemovalWidget_);
+
+    // Modo 2: Cor / Chroma Key (Pixel Art)
+    auto* colorLayout = new QVBoxLayout(colorRemovalWidget_);
+    colorLayout->setContentsMargins(0, 0, 0, 0);
+    colorLayout->setSpacing(7);
+    auto* colorForm = new QFormLayout;
+    colorForm->setLabelAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+    colorForm->setRowWrapPolicy(QFormLayout::WrapAllRows);
+
+    auto* keyColorRow = new QHBoxLayout;
+    btnKeyColorSample_->setObjectName("colorPickerButton");
+    btnKeyColorSample_->setCursor(Qt::PointingHandCursor);
+    btnKeyColorSample_->setToolTip(TR("Clique para escolher a cor a ser removida",
+                                      "Click to choose the color to be removed"));
+    btnAutoDetectKeyColor_->setToolTip(TR("Detecta a cor predominante dos cantos da imagem",
+                                          "Detects the dominant color in image corners"));
+    keyColorRow->addWidget(btnKeyColorSample_, 1);
+    keyColorRow->addWidget(btnAutoDetectKeyColor_);
+    colorForm->addRow(TR("Cor alvo", "Target color"), keyColorRow);
+
+    colorToleranceSpin_->setRange(0, 100);
+    colorToleranceSpin_->setValue(0);
+    colorToleranceSpin_->setSuffix(" %");
+    colorToleranceSpin_->setToolTip(TR("0% para pixel art exato; aumente para fundos com ruído ou variações",
+                                       "0% for exact pixel art; increase for noisy backgrounds"));
+    colorForm->addRow(TR("Tolerância", "Tolerance"), colorToleranceSpin_);
+    colorLayout->addLayout(colorForm);
+
+    colorContiguousCheckBox_->setChecked(false);
+    colorContiguousCheckBox_->setToolTip(TR("Desmarcado: remove a cor em toda a imagem (inclusive entre pernas/braços);\nMarcado: remove apenas o fundo contíguo às bordas.",
+                                            "Unchecked: removes color in entire image (including holes between limbs);\nChecked: removes only background connected to the borders."));
+    colorLayout->addWidget(colorContiguousCheckBox_);
+
+    colorPixelArtCheckBox_->setChecked(true);
+    colorPixelArtCheckBox_->setToolTip(TR("Mantém as bordas perfeitamente duras sem suavização (essencial para Pixel Art e Sprites).",
+                                          "Keeps edges perfectly sharp without feathering (essential for Pixel Art & Sprites)."));
+    colorLayout->addWidget(colorPixelArtCheckBox_);
+
+    btnRemoveByColor_->setObjectName("primaryAction");
+    btnRemoveByColor_->setMinimumHeight(38);
+    colorLayout->addWidget(btnRemoveByColor_);
+    colorRemovalWidget_->setVisible(false);
+    inspectorLayout->addWidget(colorRemovalWidget_);
 
     auto* separatorOne = new QFrame;
     separatorOne->setObjectName("inspectorSeparator");
@@ -632,6 +695,19 @@ MainWindow::MainWindow(QWidget* parent, const QString& modelPath)
         if (presetCombo_->currentIndex() != 0) presetCombo_->setCurrentIndex(0);
     });
 
+    updateKeyColorButton();
+    btnAutoDetectKeyColor_->setEnabled(false);
+    btnRemoveByColor_->setEnabled(false);
+    connect(removalMethodCombo_, QOverload<int>::of(
+                &QComboBox::currentIndexChanged),
+            this,              &MainWindow::removalMethodChanged);
+    connect(btnKeyColorSample_, &QPushButton::clicked,
+            this,              &MainWindow::pickKeyColor);
+    connect(btnAutoDetectKeyColor_, &QPushButton::clicked,
+            this,              &MainWindow::autoDetectKeyColor);
+    connect(btnRemoveByColor_, &QPushButton::clicked,
+            this,              &MainWindow::removeByColor);
+
     // A inferencia corre numa thread; o resultado volta pelo watcher.
     connect(&removeWatcher_, &QFutureWatcher<SingleResult>::finished,
             this,            &MainWindow::onRemoveFinished);
@@ -854,6 +930,10 @@ void MainWindow::openPath(const QString& path) {
     // imagem recem-aberta.
     maskEditCanvas_->setCompareImage(img);
     setOriginal(img);
+    keyColor_ = ImagePostProcessor::detectCornerColor(img);
+    updateKeyColorButton();
+    btnAutoDetectKeyColor_->setEnabled(true);
+    btnRemoveByColor_->setEnabled(true);
     logEdit_->appendPlainText("[INFO] " + TR("Carregada: ", "Loaded: ") + path);
 }
 
@@ -1314,6 +1394,13 @@ void MainWindow::setUiBusy(bool busy)
     noiseThresholdSpin_->setEnabled(!busy);
     stickerCheckBox_->setEnabled(!busy);
     shadowCheckBox_->setEnabled(!busy);
+    removalMethodCombo_->setEnabled(!busy);
+    btnKeyColorSample_->setEnabled(!busy);
+    btnAutoDetectKeyColor_->setEnabled(!busy && !originalImage_.isNull());
+    colorToleranceSpin_->setEnabled(!busy);
+    colorContiguousCheckBox_->setEnabled(!busy);
+    colorPixelArtCheckBox_->setEnabled(!busy);
+    btnRemoveByColor_->setEnabled(!busy && !originalImage_.isNull());
     brushModeCombo_->setEnabled(!busy);
     brushRadiusSpin_->setEnabled(!busy);
     btnAutoCrop_->setEnabled(!busy && !resultImage_.isNull());
@@ -1806,6 +1893,10 @@ void MainWindow::pasteImageFromClipboard()
         maskEditCanvas_->clearImage();
         maskEditCanvas_->setCompareImage(img);
         setOriginal(img);
+        keyColor_ = ImagePostProcessor::detectCornerColor(img);
+        updateKeyColorButton();
+        btnAutoDetectKeyColor_->setEnabled(true);
+        btnRemoveByColor_->setEnabled(true);
         logEdit_->appendPlainText("[INFO] " + TR(
             "Imagem colada da área de transferência.",
             "Image pasted from clipboard."));
@@ -1917,4 +2008,72 @@ void MainWindow::startDragOut()
     drag->setHotSpot(QPoint(preview.width() / 2, preview.height() / 2));
 
     drag->exec(Qt::CopyAction);
+}
+
+void MainWindow::updateKeyColorButton()
+{
+    const QString hex = keyColor_.name(QColor::HexRgb).toUpper();
+    const double luminance = (0.299 * keyColor_.red() + 0.587 * keyColor_.green() + 0.114 * keyColor_.blue()) / 255.0;
+    const QString textColor = luminance > 0.5 ? "#000000" : "#FFFFFF";
+
+    btnKeyColorSample_->setText(hex);
+    btnKeyColorSample_->setStyleSheet(QString(
+        "QPushButton { background-color: %1; color: %2; font-weight: bold; "
+        "border: 1px solid #555555; border-radius: 4px; padding: 4px; min-height: 24px; }")
+        .arg(hex, textColor));
+}
+
+void MainWindow::removalMethodChanged(int index)
+{
+    aiRemovalWidget_->setVisible(index == 0);
+    colorRemovalWidget_->setVisible(index == 1);
+}
+
+void MainWindow::pickKeyColor()
+{
+    const QColor c = QColorDialog::getColor(
+        keyColor_, this,
+        TR("Escolher cor de fundo a remover", "Choose background color to remove"));
+    if (c.isValid()) {
+        keyColor_ = c;
+        updateKeyColorButton();
+    }
+}
+
+void MainWindow::autoDetectKeyColor()
+{
+    if (originalImage_.isNull()) return;
+    keyColor_ = ImagePostProcessor::detectCornerColor(originalImage_);
+    updateKeyColorButton();
+    logEdit_->appendPlainText("[INFO] " + TR("Cor detectada dos cantos: ",
+                                            "Corner color detected: ") + keyColor_.name().toUpper());
+}
+
+void MainWindow::removeByColor()
+{
+    if (originalImage_.isNull()) {
+        QMessageBox::warning(this, TR("Aviso", "Warning"),
+            TR("Abra uma imagem primeiro.", "Open an image first."));
+        return;
+    }
+
+    const int tol = colorToleranceSpin_->value();
+    const bool contiguous = colorContiguousCheckBox_->isChecked();
+    const bool pixelArt = colorPixelArtCheckBox_->isChecked();
+
+    QImage removed = ImagePostProcessor::removeByColor(
+        originalImage_, keyColor_, tol, contiguous, pixelArt);
+
+    resultImage_ = removed;
+    maskEditCanvas_->setImage(resultImage_, currentBackgroundColor());
+    setResult(resultImage_);
+    btnAutoCrop_->setEnabled(true);
+    btnDragOut_->setEnabled(true);
+
+    logEdit_->appendPlainText(QString("[OK] %1 (%2: %3, %4: %5%)")
+        .arg(TR("Remoção por cor concluída", "Color removal completed"))
+        .arg(TR("Cor", "Color"))
+        .arg(keyColor_.name().toUpper())
+        .arg(TR("Tolerância", "Tolerance"))
+        .arg(tol));
 }

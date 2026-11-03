@@ -5,6 +5,9 @@
 #include <QPainter>
 #include <algorithm>
 #include <cmath>
+#include <map>
+#include <queue>
+#include <vector>
 
 // Todas as operacoes trabalham em Format_RGBA8888, cujo canal alfa
 // fica no byte 3 de cada pixel. O acesso por scanline evita
@@ -407,6 +410,133 @@ QImage ImagePostProcessor::compositeBackgroundImage(const QImage& foreground,
     QPainter p(&result);
     p.drawImage(0, 0, foreground);
     p.end();
+
+    return result;
+}
+
+QColor ImagePostProcessor::detectCornerColor(const QImage& img)
+{
+    if (img.isNull()) return Qt::magenta;
+    const QImage src = img.convertToFormat(QImage::Format_RGBA8888);
+    const int w = src.width();
+    const int h = src.height();
+
+    const QList<QPoint> samplePoints = {
+        QPoint(0, 0),
+        QPoint(w - 1, 0),
+        QPoint(0, h - 1),
+        QPoint(w - 1, h - 1),
+        QPoint(std::min(1, w - 1), std::min(1, h - 1)),
+        QPoint(std::max(0, w - 2), std::min(1, h - 1)),
+        QPoint(std::min(1, w - 1), std::max(0, h - 2)),
+        QPoint(std::max(0, w - 2), std::max(0, h - 2))
+    };
+
+    std::map<QRgb, int> freq;
+    for (const QPoint& pt : samplePoints) {
+        const QRgb c = src.pixel(pt);
+        freq[c]++;
+    }
+
+    QRgb bestRgb = src.pixel(0, 0);
+    int bestCount = 0;
+    for (const auto& [rgb, count] : freq) {
+        if (count > bestCount) {
+            bestCount = count;
+            bestRgb = rgb;
+        }
+    }
+    return QColor(bestRgb);
+}
+
+QImage ImagePostProcessor::removeByColor(const QImage& input,
+                                        const QColor& targetColor,
+                                        int tolerance,
+                                        bool contiguous,
+                                        bool preservePixelArt)
+{
+    if (input.isNull() || !targetColor.isValid()) return input.copy();
+
+    QImage result = input.convertToFormat(QImage::Format_RGBA8888);
+    const int w = result.width();
+    const int h = result.height();
+
+    const int tr = targetColor.red();
+    const int tg = targetColor.green();
+    const int tb = targetColor.blue();
+
+    const float maxDist = (std::clamp(tolerance, 0, 100) / 100.0f) * 441.67295593f;
+    const float maxDistSq = maxDist * maxDist;
+
+    auto matchesColor = [&](int r, int g, int b) -> bool {
+        const float dr = static_cast<float>(r - tr);
+        const float dg = static_cast<float>(g - tg);
+        const float db = static_cast<float>(b - tb);
+        return (dr * dr + dg * dg + db * db) <= maxDistSq;
+    };
+
+    auto calcAlpha = [&](int r, int g, int b, int currentAlpha) -> int {
+        if (preservePixelArt) {
+            return matchesColor(r, g, b) ? 0 : currentAlpha;
+        }
+        const float dr = static_cast<float>(r - tr);
+        const float dg = static_cast<float>(g - tg);
+        const float db = static_cast<float>(b - tb);
+        const float dist = std::sqrt(dr * dr + dg * dg + db * db);
+        if (dist <= maxDist * 0.7f) return 0;
+        if (dist >= maxDist) return currentAlpha;
+        const float t = (dist - maxDist * 0.7f) / (maxDist * 0.3f);
+        return static_cast<int>(currentAlpha * t);
+    };
+
+    if (!contiguous) {
+        for (int y = 0; y < h; ++y) {
+            uchar* row = result.scanLine(y);
+            for (int x = 0; x < w; ++x) {
+                const int r = row[x * 4 + 0];
+                const int g = row[x * 4 + 1];
+                const int b = row[x * 4 + 2];
+                const int a = row[x * 4 + 3];
+                row[x * 4 + 3] = static_cast<uchar>(calcAlpha(r, g, b, a));
+            }
+        }
+    } else {
+        std::vector<uint8_t> visited(static_cast<size_t>(w * h), 0);
+        std::queue<QPoint> q;
+
+        auto tryPush = [&](int x, int y) {
+            if (x < 0 || x >= w || y < 0 || y >= h) return;
+            const size_t idx = static_cast<size_t>(y * w + x);
+            if (visited[idx]) return;
+            const uchar* pixel = result.constScanLine(y) + x * 4;
+            if (matchesColor(pixel[0], pixel[1], pixel[2])) {
+                visited[idx] = 1;
+                q.push(QPoint(x, y));
+            }
+        };
+
+        for (int x = 0; x < w; ++x) {
+            tryPush(x, 0);
+            tryPush(x, h - 1);
+        }
+        for (int y = 0; y < h; ++y) {
+            tryPush(0, y);
+            tryPush(w - 1, y);
+        }
+
+        while (!q.empty()) {
+            const QPoint pt = q.front();
+            q.pop();
+
+            uchar* p = result.scanLine(pt.y()) + pt.x() * 4;
+            p[3] = static_cast<uchar>(calcAlpha(p[0], p[1], p[2], p[3]));
+
+            tryPush(pt.x() + 1, pt.y());
+            tryPush(pt.x() - 1, pt.y());
+            tryPush(pt.x(), pt.y() + 1);
+            tryPush(pt.x(), pt.y() - 1);
+        }
+    }
 
     return result;
 }

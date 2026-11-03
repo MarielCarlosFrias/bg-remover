@@ -36,6 +36,14 @@ public:
     static QImage compositeBackgroundImage(const QImage& foreground,
                                            const QImage& backgroundImage);
 
+    // Remoção por cor / Chroma Key (ideal para Pixel Art, Sprites e fundos sólidos).
+    static QColor detectCornerColor(const QImage& img);
+    static QImage removeByColor(const QImage& input,
+                                const QColor& targetColor,
+                                int tolerance = 0,
+                                bool contiguous = false,
+                                bool preservePixelArt = true);
+
     // Carrega uma imagem respeitando a orientação EXIF (fotos de telemóvel).
     static QImage loadImage(const QString& path);
 };

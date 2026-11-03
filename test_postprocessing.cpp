@@ -73,6 +73,43 @@ int main()
         return 1;
     }
 
+    // Teste de detectCornerColor e removeByColor (Pixel Art / Chroma Key)
+    QImage sprite(20, 20, QImage::Format_RGBA8888);
+    sprite.fill(qRgb(255, 0, 255)); // Magenta de fundo
+    // Desenha um anel verde com buraco magenta no centro
+    for (int y = 5; y <= 15; ++y) {
+        for (int x = 5; x <= 15; ++x) {
+            sprite.setPixel(x, y, qRgb(0, 255, 0));
+        }
+    }
+    sprite.setPixel(10, 10, qRgb(255, 0, 255)); // Buraco isolado
+
+    const QColor detected = ImagePostProcessor::detectCornerColor(sprite);
+    if (detected.red() != 255 || detected.green() != 0 || detected.blue() != 255) {
+        std::cerr << "FAIL: detectCornerColor" << std::endl;
+        return 1;
+    }
+
+    // Modo contíguo (deve manter o buraco interno isolado com alfa 255)
+    const QImage contiguousResult = ImagePostProcessor::removeByColor(
+        sprite, QColor(255, 0, 255), 0, true, true);
+    if (qAlpha(contiguousResult.pixel(0, 0)) != 0
+        || qAlpha(contiguousResult.pixel(5, 5)) != 255
+        || qAlpha(contiguousResult.pixel(10, 10)) != 255) {
+        std::cerr << "FAIL: removeByColor contiguous" << std::endl;
+        return 1;
+    }
+
+    // Modo global (deve remover o buraco interno também)
+    const QImage globalResult = ImagePostProcessor::removeByColor(
+        sprite, QColor(255, 0, 255), 0, false, true);
+    if (qAlpha(globalResult.pixel(0, 0)) != 0
+        || qAlpha(globalResult.pixel(5, 5)) != 255
+        || qAlpha(globalResult.pixel(10, 10)) != 0) {
+        std::cerr << "FAIL: removeByColor global" << std::endl;
+        return 1;
+    }
+
     std::cout << "PASS" << std::endl;
     return 0;
 }
