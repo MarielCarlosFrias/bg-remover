@@ -199,18 +199,31 @@ ModelManagerWidget::catalog()
           176069933, base + "/isnet-anime.onnx", QString() },
         { "bria-rmbg-1.4.onnx",
           TR("BRIA RMBG-1.4 — alta definição", "BRIA RMBG-1.4 — high definition"),
-          TR("Modelo moderno da BRIA AI (~177 MB): excelente precisão em "
+          TR("Modelo moderno da BRIA AI (~176 MB): excelente precisão em "
              "cabelo, animais e recortes finos de estúdio.",
-             "Modern model from BRIA AI (~177 MB): excellent precision in "
+             "Modern model from BRIA AI (~176 MB): excellent precision in "
              "hair, pets and fine studio cutouts."),
-          176000000, base + "/bria-rmbg-1.4.onnx", QString() },
+          176153355,
+          "https://huggingface.co/briaai/RMBG-1.4/resolve/main/onnx/model.onnx",
+          QString() },
+        { "bria-rmbg-2.0.onnx",
+          TR("BRIA RMBG-2.0 — máxima precisão", "BRIA RMBG-2.0 — maximum precision"),
+          TR("Versão mais recente da BRIA AI (~977 MB): segmentação profissional "
+             "com altíssima acurácia em detalhes complexos.",
+             "Latest version from BRIA AI (~977 MB): professional-grade "
+             "segmentation with highest accuracy on complex details."),
+          1024331469,
+          base + "/bria-rmbg-2.0.onnx",
+          QString() },
         { "birefnet-general.onnx",
           TR("BiRefNet — estado da arte", "BiRefNet — state of the art"),
-          TR("Bilateral Reference Network (~220 MB): máxima fidelidade "
+          TR("Bilateral Reference Network (~928 MB): máxima fidelidade "
              "e detalhes microscópicos em bordas.",
-             "Bilateral Reference Network (~220 MB): maximum fidelity "
+             "Bilateral Reference Network (~928 MB): maximum fidelity "
              "and microscopic detail on edges."),
-          220000000, base + "/birefnet-general.onnx", QString() },
+          972666916,
+          base + "/BiRefNet-general-epoch_244.onnx",
+          QString() },
     };
 }
 
