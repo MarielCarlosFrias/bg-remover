@@ -35,6 +35,44 @@ int main()
         return 1;
     }
 
+    // Teste de Auto-Crop
+    QImage cropSource(30, 30, QImage::Format_RGBA8888);
+    cropSource.fill(Qt::transparent);
+    for (int y = 10; y < 20; ++y) {
+        for (int x = 10; x < 20; ++x) {
+            cropSource.setPixel(x, y, qRgba(255, 0, 0, 255));
+        }
+    }
+    const QImage cropped = ImagePostProcessor::autoCrop(cropSource, 0);
+    if (cropped.width() != 10 || cropped.height() != 10) {
+        std::cerr << "FAIL: autoCrop dimensions expected 10x10, got "
+                  << cropped.width() << "x" << cropped.height() << std::endl;
+        return 1;
+    }
+
+    // Teste de Sticker Outline
+    const QImage sticker = ImagePostProcessor::applyStickerOutline(
+        cropSource, 2, Qt::white);
+    if (sticker.size() != cropSource.size() || qAlpha(sticker.pixel(8, 10)) == 0) {
+        std::cerr << "FAIL: sticker outline" << std::endl;
+        return 1;
+    }
+
+    // Teste de Drop Shadow
+    const QImage shadowed = ImagePostProcessor::applyDropShadow(
+        cropSource, 2, 2, 4, 0.5f);
+    if (shadowed.size() != cropSource.size() || qAlpha(shadowed.pixel(21, 21)) == 0) {
+        std::cerr << "FAIL: drop shadow" << std::endl;
+        return 1;
+    }
+
+    // Teste de Blur
+    const QImage blurred = ImagePostProcessor::blurImage(cropSource, 3);
+    if (blurred.size() != cropSource.size()) {
+        std::cerr << "FAIL: blur" << std::endl;
+        return 1;
+    }
+
     std::cout << "PASS" << std::endl;
     return 0;
 }

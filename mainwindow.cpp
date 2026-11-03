@@ -38,6 +38,7 @@
 #include <QCloseEvent>
 #include <QKeySequence>
 #include <QMimeData>
+#include <QDrag>
 #include <QUrl>
 #include <QClipboard>
 #include <QDesktopServices>
@@ -79,6 +80,29 @@ ProcessingOptions MainWindow::currentProcessingOptions() const
     options.refineEdges = refineCheckBox_->isChecked();
     options.edgeRefinementIntensity = 0.5f;
     options.backgroundColor = currentBackgroundColor();
+
+    const int bgIdx = bgColorCombo_->currentIndex();
+    if (bgIdx == 4) {
+        options.backgroundStyle = ProcessingOptions::BgBlurredOriginal;
+    } else if (bgIdx == 5 && !customBgImagePath_.isEmpty()) {
+        options.backgroundStyle = ProcessingOptions::BgCustomImage;
+        options.backgroundImagePath = customBgImagePath_;
+    } else if (options.backgroundColor.isValid()) {
+        options.backgroundStyle = ProcessingOptions::BgSolidColor;
+    } else {
+        options.backgroundStyle = ProcessingOptions::BgTransparent;
+    }
+
+    options.stickerOutline = stickerCheckBox_->isChecked();
+    options.stickerWidth = 6;
+    options.stickerColor = Qt::white;
+
+    options.dropShadow = shadowCheckBox_->isChecked();
+    options.shadowBlur = 10;
+    options.shadowOffsetX = 4;
+    options.shadowOffsetY = 6;
+    options.shadowOpacity = 0.5f;
+
     return options;
 }
 
@@ -105,12 +129,17 @@ MainWindow::MainWindow(QWidget* parent, const QString& modelPath)
       btnProcessBatch_(new QPushButton(TR("Processar lote", "Process batch"))),
       btnUndo_(new QPushButton(TR("Desfazer", "Undo"))),
       btnRedo_(new QPushButton(TR("Refazer", "Redo"))),
+      btnAutoCrop_(new QPushButton(TR("Auto-Recorte", "Auto-Crop"))),
+      btnDragOut_(new QPushButton(TR("Arrastar resultado", "Drag result"))),
+      presetCombo_(new QComboBox),
       bgColorCombo_(new QComboBox),
       brushModeCombo_(new QComboBox),
       brushRadiusSpin_(new QSpinBox),
       noiseThresholdSpin_(new QSpinBox),
       refineCheckBox_(new QCheckBox(TR("Refinar bordas", "Refine edges"))),
       noiseCheckBox_(new QCheckBox(TR("Limpar ruído", "Clean noise"))),
+      stickerCheckBox_(new QCheckBox(TR("Contorno (Sticker)", "Sticker outline"))),
+      shadowCheckBox_(new QCheckBox(TR("Sombra suave", "Drop shadow"))),
       saveFormatCombo_(new QComboBox),
       updateBanner_(new QLabel),
       progressBar_(new QProgressBar),
@@ -146,14 +175,23 @@ MainWindow::MainWindow(QWidget* parent, const QString& modelPath)
     populateModelCombo();
     modelPathEdit_->setMinimumWidth(0);
 
+    presetCombo_->addItem(TR("Personalizado", "Custom"));
+    presetCombo_->addItem(TR("Padrão (Transparente)", "Standard (Transparent)"));
+    presetCombo_->addItem(TR("E-commerce (Branco + Sombra)", "E-commerce (White + Shadow)"));
+    presetCombo_->addItem(TR("Sticker (Contorno Branco)", "Sticker (White Outline)"));
+    presetCombo_->addItem(TR("Retrato (Fundo Desfocado)", "Portrait (Blurred Background)"));
+    presetCombo_->setCurrentIndex(0);
+
     bgColorCombo_->addItem(TR("Transparente", "Transparent"), QVariant());
     bgColorCombo_->addItem(
         TR("Branco", "White"), QVariant::fromValue(QColor(Qt::white)));
     bgColorCombo_->addItem(
         TR("Preto", "Black"), QVariant::fromValue(QColor(Qt::black)));
     bgColorCombo_->addItem(TR("Personalizado...", "Custom..."), QVariant());
+    bgColorCombo_->addItem(TR("Desfoque original (Retrato)", "Original blur (Portrait)"), QVariant());
+    bgColorCombo_->addItem(TR("Imagem de fundo...", "Background image..."), QVariant());
     bgColorCombo_->setCurrentIndex(0);
-    bgColorCombo_->setMaximumWidth(160);
+    bgColorCombo_->setMaximumWidth(200);
 
     brushModeCombo_->addItem(TR("Restaurar", "Restore"));
     brushModeCombo_->addItem(TR("Apagar", "Erase"));
@@ -167,6 +205,12 @@ MainWindow::MainWindow(QWidget* parent, const QString& modelPath)
     maskEditCanvas_->setBrushRadius(brushRadiusSpin_->value());
 
     btnUndo_->setEnabled(false);
+    btnAutoCrop_->setEnabled(false);
+    btnDragOut_->setEnabled(false);
+    btnAutoCrop_->setToolTip(TR("Recorta o espaço transparente ao redor do objeto",
+                                "Crops transparent empty space around the object"));
+    btnDragOut_->setToolTip(TR("Clique e arraste para soltar o PNG no Photoshop, Telegram ou pasta",
+                               "Click and drag to drop the PNG into Photoshop, Telegram or folder"));
 
     outputDirEdit_->setReadOnly(true);
 
@@ -188,7 +232,12 @@ MainWindow::MainWindow(QWidget* parent, const QString& modelPath)
     folderEdit_->setObjectName("batchInput");
     outputDirEdit_->setObjectName("batchOutput");
     saveFormatCombo_->setObjectName("saveFormatCombo");
+    presetCombo_->setObjectName("presetCombo");
     bgColorCombo_->setObjectName("bgColorCombo");
+    btnAutoCrop_->setObjectName("autoCropButton");
+    btnDragOut_->setObjectName("dragOutButton");
+    stickerCheckBox_->setObjectName("stickerCheckBox");
+    shadowCheckBox_->setObjectName("shadowCheckBox");
     refineCheckBox_->setObjectName("refineEdges");
     noiseCheckBox_->setObjectName("cleanNoise");
     noiseThresholdSpin_->setObjectName("noiseThreshold");
@@ -369,6 +418,7 @@ MainWindow::MainWindow(QWidget* parent, const QString& modelPath)
         TR("Ajustes de saída", "Output adjustments")));
     auto* outputForm = new QFormLayout;
     outputForm->setRowWrapPolicy(QFormLayout::WrapAllRows);
+    outputForm->addRow(TR("Predefinição", "Preset"), presetCombo_);
     outputForm->addRow(TR("Fundo ao salvar", "Background on save"),
                        bgColorCombo_);
     // Formato de saida: PNG e WebP guardam transparencia; JPEG
@@ -393,13 +443,15 @@ MainWindow::MainWindow(QWidget* parent, const QString& modelPath)
     noiseRow->addWidget(new QLabel(TR("Limiar", "Threshold")));
     noiseRow->addWidget(noiseThresholdSpin_, 1);
     inspectorLayout->addLayout(noiseRow);
+    inspectorLayout->addWidget(stickerCheckBox_);
+    inspectorLayout->addWidget(shadowCheckBox_);
 
     auto* separatorTwo = new QFrame;
     separatorTwo->setObjectName("inspectorSeparator");
     separatorTwo->setFrameShape(QFrame::HLine);
     inspectorLayout->addWidget(separatorTwo);
     inspectorLayout->addWidget(sectionTitle(
-        TR("Correção manual", "Manual touch-up")));
+        TR("Correção manual & Ações", "Manual touch-up & Actions")));
     auto* brushForm = new QFormLayout;
     brushForm->setRowWrapPolicy(QFormLayout::WrapAllRows);
     brushForm->addRow(TR("Pincel", "Brush"), brushModeCombo_);
@@ -409,9 +461,13 @@ MainWindow::MainWindow(QWidget* parent, const QString& modelPath)
     undoRow->addWidget(btnUndo_);
     undoRow->addWidget(btnRedo_);
     inspectorLayout->addLayout(undoRow);
+    auto* actionRow = new QHBoxLayout;
+    actionRow->addWidget(btnAutoCrop_);
+    actionRow->addWidget(btnDragOut_);
+    inspectorLayout->addLayout(actionRow);
     auto* brushHint = new QLabel(TR(
-        "Após remover o fundo, use o pincel no painel Resultado para restaurar ou apagar detalhes.",
-        "After removing the background, use the brush on the Result panel to restore or erase details."));
+        "Após remover o fundo, use o pincel para corrigir detalhes, faça auto-recorte ou arraste o resultado.",
+        "After removing the background, use the brush to touch up details, auto-crop or drag the result."));
     brushHint->setObjectName("inspectorHint");
     brushHint->setWordWrap(true);
     inspectorLayout->addWidget(brushHint);
@@ -562,6 +618,20 @@ MainWindow::MainWindow(QWidget* parent, const QString& modelPath)
     btnUndo_->setEnabled(false);
     btnRedo_->setEnabled(false);
 
+    connect(btnAutoCrop_,      &QPushButton::clicked,
+            this,              &MainWindow::autoCropResult);
+    connect(btnDragOut_,       &QPushButton::clicked,
+            this,              &MainWindow::startDragOut);
+    connect(presetCombo_, QOverload<int>::of(
+                &QComboBox::currentIndexChanged),
+            this,              &MainWindow::presetChanged);
+    connect(stickerCheckBox_,  &QCheckBox::toggled, this, [this](bool) {
+        if (presetCombo_->currentIndex() != 0) presetCombo_->setCurrentIndex(0);
+    });
+    connect(shadowCheckBox_,   &QCheckBox::toggled, this, [this](bool) {
+        if (presetCombo_->currentIndex() != 0) presetCombo_->setCurrentIndex(0);
+    });
+
     // A inferencia corre numa thread; o resultado volta pelo watcher.
     connect(&removeWatcher_, &QFutureWatcher<SingleResult>::finished,
             this,            &MainWindow::onRemoveFinished);
@@ -575,6 +645,8 @@ MainWindow::MainWindow(QWidget* parent, const QString& modelPath)
     connect(scSave, &QShortcut::activated, this, &MainWindow::saveResult);
     auto* scCopy = new QShortcut(QKeySequence("Ctrl+Shift+C"), this);
     connect(scCopy, &QShortcut::activated, this, &MainWindow::copyResult);
+    auto* scPaste = new QShortcut(QKeySequence::Paste, this);
+    connect(scPaste, &QShortcut::activated, this, &MainWindow::pasteImageFromClipboard);
     auto* scUndo = new QShortcut(QKeySequence::Undo, this);
     connect(scUndo, &QShortcut::activated, this, [this]() {
         if (!isBusy_) maskEditCanvas_->undo();
@@ -770,6 +842,8 @@ void MainWindow::openPath(const QString& path) {
     }
     ++imageGeneration_;
     resultImage_ = QImage();
+    btnAutoCrop_->setEnabled(false);
+    btnDragOut_->setEnabled(false);
     originalImage_ = img;
     currentImagePath_ = path;
     imageNameLabel_->setText(QFileInfo(path).fileName());
@@ -812,6 +886,10 @@ void MainWindow::modelIndexChanged(int index) {
 }
 
 void MainWindow::bgColorChanged(int index) {
+    if (presetCombo_->currentIndex() != 0) {
+        const QSignalBlocker blocker(presetCombo_);
+        presetCombo_->setCurrentIndex(0);
+    }
     if (index == 3) {
         QColor color = QColorDialog::getColor(
             customBgColor_.isValid() ? customBgColor_ : Qt::white,
@@ -823,6 +901,18 @@ void MainWindow::bgColorChanged(int index) {
             bgColorCombo_->setItemText(3, color.name());
             bgColorCombo_->setCurrentIndex(3);
         } else {
+            bgColorCombo_->setCurrentIndex(0);
+        }
+    } else if (index == 5) {
+        const QString path = QFileDialog::getOpenFileName(
+            this, TR("Escolher imagem de fundo", "Choose background image"),
+            QDir::homePath(),
+            TR("Imagens (*.png *.jpg *.jpeg *.bmp *.webp *.tiff)",
+               "Images (*.png *.jpg *.jpeg *.bmp *.webp *.tiff)"));
+        if (!path.isEmpty()) {
+            customBgImagePath_ = path;
+            bgColorCombo_->setItemText(5, QFileInfo(path).fileName());
+        } else if (customBgImagePath_.isEmpty()) {
             bgColorCombo_->setCurrentIndex(0);
         }
     }
@@ -930,6 +1020,8 @@ void MainWindow::onRemoveFinished()
     resultImage_ = res.image;
     maskEditCanvas_->setImage(resultImage_, currentBackgroundColor());
     setResult(resultImage_);
+    btnAutoCrop_->setEnabled(true);
+    btnDragOut_->setEnabled(true);
     logEdit_->appendPlainText("[OK] " + TR("Fundo removido.",
                                            "Background removed."));
     emit jobFinished();
@@ -983,18 +1075,18 @@ void MainWindow::saveResult() {
         return;
     }
 
-    ProcessingOptions saveOptions;
+    ProcessingOptions saveOptions = currentProcessingOptions();
     // Formatos sem canal alfa precisam de fundo solido, senao o Qt
     // compoe sobre preto e o resultado surpreende.
     const bool needSolidBg = currentBackgroundColor().isValid()
         || !saveFormatIsAlphaCapable();
-    QColor bg = currentBackgroundColor();
-    if (needSolidBg && !bg.isValid()) bg = Qt::white;
-    saveOptions.backgroundColor = bg;
+    if (needSolidBg && saveOptions.backgroundStyle == ProcessingOptions::BgTransparent) {
+        saveOptions.backgroundStyle = ProcessingOptions::BgSolidColor;
+        saveOptions.backgroundColor = Qt::white;
+    }
 
-    const QImage toSave = needSolidBg
-        ? ImagePostProcessor::apply(resultImage_, saveOptions)
-        : resultImage_;
+    const QImage toSave = ImagePostProcessor::apply(
+        resultImage_, saveOptions, originalImage_);
 
     if (!toSave.save(path, fmt.constData())) {
         QMessageBox::critical(this, TR("Erro", "Error"),
@@ -1042,16 +1134,9 @@ void MainWindow::copyResult()
             TR("Remova o fundo primeiro.", "Remove the background first."));
         return;
     }
-    // Com fundo transparente, preservar o alfa na area de
-    // transferencia; se o utilizador escolheu uma cor, compor sobre
-    // ela como no salvamento.
-    QImage toCopy = resultImage_;
-    const QColor bg = currentBackgroundColor();
-    if (bg.isValid()) {
-        ProcessingOptions options;
-        options.backgroundColor = bg;
-        toCopy = ImagePostProcessor::apply(resultImage_, options);
-    }
+    ProcessingOptions copyOptions = currentProcessingOptions();
+    const QImage toCopy = ImagePostProcessor::apply(
+        resultImage_, copyOptions, originalImage_);
 
     QApplication::clipboard()->setImage(toCopy);
     logEdit_->appendPlainText(
@@ -1222,12 +1307,17 @@ void MainWindow::setUiBusy(bool busy)
     folderEdit_->setEnabled(!busy);
     outputDirEdit_->setEnabled(!busy);
     saveFormatCombo_->setEnabled(!busy);
+    presetCombo_->setEnabled(!busy);
     bgColorCombo_->setEnabled(!busy);
     refineCheckBox_->setEnabled(!busy);
     noiseCheckBox_->setEnabled(!busy);
     noiseThresholdSpin_->setEnabled(!busy);
+    stickerCheckBox_->setEnabled(!busy);
+    shadowCheckBox_->setEnabled(!busy);
     brushModeCombo_->setEnabled(!busy);
     brushRadiusSpin_->setEnabled(!busy);
+    btnAutoCrop_->setEnabled(!busy && !resultImage_.isNull());
+    btnDragOut_->setEnabled(!busy && !resultImage_.isNull());
     // O canvas nao pode aceitar pinceladas enquanto a inferencia
     // decorre: as edicoes seriam substituidas pelo resultado novo.
     maskEditCanvas_->setEnabled(!busy);
@@ -1697,4 +1787,134 @@ void MainWindow::setOriginal(const QImage& img) {
 void MainWindow::setResult(const QImage& img) {
     Q_UNUSED(img)
     updatePreviewZoom();
+}
+
+void MainWindow::pasteImageFromClipboard()
+{
+    if (isBusy_) return;
+    const QClipboard* clipboard = QApplication::clipboard();
+    const QImage img = clipboard->image();
+    if (!img.isNull()) {
+        ++imageGeneration_;
+        resultImage_ = QImage();
+        btnAutoCrop_->setEnabled(false);
+        btnDragOut_->setEnabled(false);
+        originalImage_ = img;
+        currentImagePath_.clear();
+        imageNameLabel_->setText(TR("Colada da área de transferência",
+                                    "Pasted from clipboard"));
+        maskEditCanvas_->clearImage();
+        maskEditCanvas_->setCompareImage(img);
+        setOriginal(img);
+        logEdit_->appendPlainText("[INFO] " + TR(
+            "Imagem colada da área de transferência.",
+            "Image pasted from clipboard."));
+        return;
+    }
+
+    const QMimeData* mime = clipboard->mimeData();
+    if (mime && mime->hasUrls()) {
+        for (const QUrl& url : mime->urls()) {
+            const QString localFile = url.toLocalFile();
+            const QFileInfo fi(localFile);
+            if (BatchPlan::imageExts().contains(fi.suffix().toLower())) {
+                openPath(localFile);
+                return;
+            }
+        }
+    }
+
+    QMessageBox::information(this, TR("Área de transferência", "Clipboard"),
+        TR("Nenhuma imagem encontrada na área de transferência.",
+           "No image found in the clipboard."));
+}
+
+void MainWindow::autoCropResult()
+{
+    if (isBusy_ || resultImage_.isNull()) return;
+
+    const QImage cropped = ImagePostProcessor::autoCrop(resultImage_, 2);
+    if (cropped.size() == resultImage_.size()) {
+        logEdit_->appendPlainText("[INFO] " + TR("Nenhuma borda vazia para recortar.",
+                                                "No empty border to crop."));
+        return;
+    }
+
+    resultImage_ = cropped;
+    maskEditCanvas_->setImage(resultImage_, currentBackgroundColor());
+    setResult(resultImage_);
+    logEdit_->appendPlainText(QString("[OK] %1: %2x%3")
+        .arg(TR("Auto-recorte aplicado", "Auto-crop applied"))
+        .arg(resultImage_.width())
+        .arg(resultImage_.height()));
+}
+
+void MainWindow::presetChanged(int index)
+{
+    const QSignalBlocker bBg(bgColorCombo_);
+    const QSignalBlocker bSticker(stickerCheckBox_);
+    const QSignalBlocker bShadow(shadowCheckBox_);
+
+    switch (index) {
+    case 1: // Padrão (Transparente)
+        bgColorCombo_->setCurrentIndex(0);
+        stickerCheckBox_->setChecked(false);
+        shadowCheckBox_->setChecked(false);
+        break;
+    case 2: // E-commerce (Branco + Sombra)
+        bgColorCombo_->setCurrentIndex(1); // Branco
+        stickerCheckBox_->setChecked(false);
+        shadowCheckBox_->setChecked(true);
+        break;
+    case 3: // Sticker (Contorno Branco)
+        bgColorCombo_->setCurrentIndex(0); // Transparente
+        stickerCheckBox_->setChecked(true);
+        shadowCheckBox_->setChecked(false);
+        break;
+    case 4: // Retrato (Fundo Desfocado)
+        bgColorCombo_->setCurrentIndex(4); // Desfoque original
+        stickerCheckBox_->setChecked(false);
+        shadowCheckBox_->setChecked(false);
+        break;
+    default:
+        break;
+    }
+
+    if (!resultImage_.isNull()) {
+        maskEditCanvas_->setBackgroundColor(currentBackgroundColor());
+    }
+}
+
+void MainWindow::startDragOut()
+{
+    if (resultImage_.isNull()) return;
+
+    ProcessingOptions dragOptions = currentProcessingOptions();
+    if (!saveFormatIsAlphaCapable()
+        && dragOptions.backgroundStyle == ProcessingOptions::BgTransparent) {
+        dragOptions.backgroundStyle = ProcessingOptions::BgSolidColor;
+        dragOptions.backgroundColor = Qt::white;
+    }
+    const QImage finalImage = ImagePostProcessor::apply(
+        resultImage_, dragOptions, originalImage_);
+
+    const QString tempDir = QDir::tempPath();
+    const QString baseName = currentImagePath_.isEmpty()
+        ? QStringLiteral("bg_removed")
+        : QFileInfo(currentImagePath_).completeBaseName() + QStringLiteral("_rembg");
+    const QString tempPath = QDir(tempDir).filePath(baseName + QStringLiteral(".png"));
+    finalImage.save(tempPath, "PNG");
+
+    auto* drag = new QDrag(this);
+    auto* mimeData = new QMimeData;
+    mimeData->setImageData(finalImage);
+    mimeData->setUrls({QUrl::fromLocalFile(tempPath)});
+    drag->setMimeData(mimeData);
+
+    const QPixmap preview = QPixmap::fromImage(
+        finalImage.scaled(128, 128, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+    drag->setPixmap(preview);
+    drag->setHotSpot(QPoint(preview.width() / 2, preview.height() / 2));
+
+    drag->exec(Qt::CopyAction);
 }

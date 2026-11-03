@@ -84,6 +84,10 @@ private slots:
     void onSaveFormatChanged(int index);
     void onUpdateCheckFinished();
     void showUpdateBanner(const QString& version);
+    void pasteImageFromClipboard();
+    void autoCropResult();
+    void presetChanged(int index);
+    void startDragOut();
 
 private:
     struct SingleResult {
@@ -139,12 +143,18 @@ private:
     QPushButton* btnProcessBatch_;
     QPushButton* btnUndo_;
     QPushButton* btnRedo_;
+    QPushButton* btnAutoCrop_;
+    QPushButton* btnDragOut_;
+    QComboBox* presetCombo_;
     QComboBox* bgColorCombo_;
     QComboBox* brushModeCombo_;
     QSpinBox* brushRadiusSpin_;
     QSpinBox* noiseThresholdSpin_;
     QCheckBox* refineCheckBox_;
     QCheckBox* noiseCheckBox_;
+    QCheckBox* stickerCheckBox_;
+    QCheckBox* shadowCheckBox_;
+    QString customBgImagePath_;
     QComboBox* saveFormatCombo_;
     QLabel* updateBanner_;
     QProgressBar* progressBar_;

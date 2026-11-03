@@ -197,6 +197,20 @@ ModelManagerWidget::catalog()
              "Optimized for anime/illustration (~176 MB): keeps lines "
              "and flat areas intact."),
           176069933, base + "/isnet-anime.onnx", QString() },
+        { "bria-rmbg-1.4.onnx",
+          TR("BRIA RMBG-1.4 — alta definição", "BRIA RMBG-1.4 — high definition"),
+          TR("Modelo moderno da BRIA AI (~177 MB): excelente precisão em "
+             "cabelo, animais e recortes finos de estúdio.",
+             "Modern model from BRIA AI (~177 MB): excellent precision in "
+             "hair, pets and fine studio cutouts."),
+          176000000, base + "/bria-rmbg-1.4.onnx", QString() },
+        { "birefnet-general.onnx",
+          TR("BiRefNet — estado da arte", "BiRefNet — state of the art"),
+          TR("Bilateral Reference Network (~220 MB): máxima fidelidade "
+             "e detalhes microscópicos em bordas.",
+             "Bilateral Reference Network (~220 MB): maximum fidelity "
+             "and microscopic detail on edges."),
+          220000000, base + "/birefnet-general.onnx", QString() },
     };
 }
 
