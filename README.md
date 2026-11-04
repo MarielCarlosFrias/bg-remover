@@ -1,4 +1,4 @@
-# BG Remover
+# Aletheia
 
 [![English](https://img.shields.io/badge/Language-English-blue.svg)](README.md)
 [![Português](https://img.shields.io/badge/Idioma-Portugu%C3%AAs-green.svg)](README.pt.md)
@@ -8,11 +8,14 @@
 [![Qt 6](https://img.shields.io/badge/Qt-6-41cd52.svg)](https://www.qt.io/)
 [![Platforms](https://img.shields.io/badge/platforms-Linux%20%7C%20Windows%20%7C%20macOS-blue.svg)](#pre-built-downloads-no-compile-needed)
 
-**Fast, private, 100% offline background removal for images.** Powered by modern deep learning models (U²-Net, BRIA RMBG, BiRefNet) and color-based Chroma Key / Pixel Art extraction, running natively in C++ with Qt 6 and ONNX Runtime.
+**Fast, private, 100% offline background removal for images.**  
+Named after the ancient Greek concept **Aletheia** (*Ἀλήθεια* — the disclosure, un-veiling, or revealing of what was hidden by removing what obscures it).
 
-No cloud uploads, no API subscriptions, no accounts. Your photos and data never leave your device.
+Powered by modern deep learning models (U²-Net, BRIA RMBG, BiRefNet) and color-based Chroma Key / Pixel Art extraction, running natively in C++ with Qt 6 and ONNX Runtime.
 
-![BG Remover Editor: original image on the left, background removed with preview controls on the right](docs/images/bg-remover-editor.png)
+No cloud uploads, no API subscriptions, no telemetry. Your photos and data never leave your device.
+
+![Aletheia Editor: original image on the left, background removed with preview controls on the right](docs/images/bg-remover-editor.png)
 
 ---
 
@@ -42,10 +45,10 @@ Ready-to-use binaries are automatically generated and tested for every release o
 
 | Platform | Package | Description |
 | :--- | :--- | :--- |
-| **Windows** | `bg-remover_*_win64.zip` | Portable standalone package. Extract and run `bg_remover_gui.exe` (Qt, ONNX Runtime and default model included). |
-| **macOS** | `bg-remover_*_macos_universal2.zip` | Universal2 `.app` bundle for both **Apple Silicon (M1/M2/M3/M4)** and **Intel** Macs. Drag to `/Applications`. CLI included. |
-| **Linux (Universal)** | `bg-remover_*_x86_64.AppImage` | Standalone executable for any modern Linux distro. Run `chmod +x` and execute. |
-| **Ubuntu / Debian** | `bg-remover_*_amd64.deb` | Native Debian package integrating desktop launchers, man page, and system icons. |
+| **Windows** | `aletheia_*_win64.zip` | Portable standalone package. Extract and run `aletheia.exe` (Qt, ONNX Runtime and default model included). |
+| **macOS** | `aletheia_*_macos_universal2.zip` | Universal2 `Aletheia.app` bundle for both **Apple Silicon (M1/M2/M3/M4)** and **Intel** Macs. Drag to `/Applications`. CLI included. |
+| **Linux (Universal)** | `aletheia_*_x86_64.AppImage` | Standalone executable for any modern Linux distro. Run `chmod +x` and execute. |
+| **Ubuntu / Debian** | `aletheia_*_amd64.deb` | Native Debian package integrating desktop launchers, man page, and system icons. |
 
 To verify the integrity of any downloaded asset against the official release checksums:
 ```bash
@@ -81,7 +84,7 @@ For pixel art graphics, game sprites, green screens, or illustrations on solid b
 - **Direct Drag-Out**: Drag the finished cutout straight from the preview canvas into your file manager, Discord, browser, or photo editor.
 
 ### Model Manager Tab
-Download, verify, or remove additional models with a single click. Downloaded models are stored locally (`~/.local/share/bg-remover/models` on Linux, `%APPDATA%/bg-remover/models` on Windows) and instantly available across both GUI and CLI.
+Download, verify, or remove additional models with a single click. Downloaded models are stored locally (`~/.local/share/aletheia/models` on Linux, `%APPDATA%/aletheia/models` on Windows) and instantly available across both GUI and CLI (with automatic fallback to legacy directories).
 
 ![Model Manager Tab](docs/images/bg-remover-modelos.png)
 
@@ -116,21 +119,21 @@ Press `F1` or open the **Help** tab for a quickstart guide, tool explanations, a
 
 ## 💻 Command Line Interface (CLI)
 
-The package includes a standalone CLI binary (`bg_remover_cli`) suitable for headless servers, build scripts, and automation:
+The package includes a standalone CLI binary (`aletheia_cli`) suitable for headless servers, build scripts, and automation:
 
 ```bash
 # Basic batch folder processing
-bg_remover_cli /path/to/input_folder -o /path/to/output_folder
+aletheia_cli /path/to/input_folder -o /path/to/output_folder
 
 # Use a specific ONNX model and export to WebP
-bg_remover_cli /path/to/input_folder -o /path/to/output -m path/to/model.onnx -f webp
+aletheia_cli /path/to/input_folder -o /path/to/output -m path/to/model.onnx -f webp
 
 # Positional legacy syntax
-bg_remover_cli <input_folder> [output_folder] [model.onnx]
+aletheia_cli <input_folder> [output_folder] [model.onnx]
 
 # Check help and version
-bg_remover_cli --help
-bg_remover_cli --version
+aletheia_cli --help
+aletheia_cli --version
 ```
 
 ---
@@ -150,7 +153,7 @@ git clone https://github.com/MarielCarlosFrias/bg-remover.git
 cd bg-remover
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBG_REMOVER_FETCH_ONNX_RUNTIME=ON
 cmake --build build -j 2
-./build/bg_remover_gui
+./build/aletheia
 ```
 
 ### Windows (Visual Studio 2022)
@@ -165,7 +168,7 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DINSTALLED=ON \
   -DBG_REMOVER_FETCH_ONNX_RUNTIME=ON \
   -DCMAKE_OSX_ARCHITECTURES="x86_64;arm64"
 cmake --build build --parallel
-open build/bg_remover_gui.app
+open build/Aletheia.app
 ```
 
 ---
@@ -175,7 +178,7 @@ open build/bg_remover_gui.app
 The project follows a clean, modular C++/Qt layout:
 
 ```text
-bg-remover/
+aletheia/
 ├── src/
 │   ├── core/                        # UI-independent engine
 │   │   ├── backgroundremover.cpp/.h # ONNX inference & tensor processing
@@ -207,10 +210,10 @@ bg-remover/
 │   ├── test_inference.cpp           # ONNX inference smoke test
 │   └── test_gui.cpp                 # Headless offscreen GUI smoke tests
 ├── assets/                          # OS integration assets
-│   ├── bg-remover.svg               # Application vector icon
-│   ├── bg-remover.desktop           # Linux desktop launcher entry
-│   ├── bg_remover_cli.1             # UNIX man page documentation
-│   └── io.github.MarielCarlosFrias.BGRemover.metainfo.xml # AppStream metadata
+│   ├── aletheia.svg                 # Application vector icon
+│   ├── aletheia.desktop             # Linux desktop launcher entry
+│   ├── aletheia_cli.1               # UNIX man page documentation
+│   └── io.github.MarielCarlosFrias.Aletheia.metainfo.xml # AppStream metadata
 ├── docs/                            # Screenshots & documentation media
 ├── .github/                         # Workflows for CI & automated multiplatform releases
 ├── CMakeLists.txt                   # Root CMake build configuration

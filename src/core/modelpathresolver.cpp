@@ -7,11 +7,8 @@
 
 QString ModelPathResolver::userModelsDir()
 {
-    // Caminho fixo, independente do nome da aplicacao. Antes usavamos
-    // AppLocalDataLocation, o que fazia a GUI escrever em
-    // .../bg-remover/bg-remover/models e o CLI em .../bg_remover_cli/models.
     return QStandardPaths::writableLocation(
-               QStandardPaths::GenericDataLocation) + "/bg-remover/models";
+               QStandardPaths::GenericDataLocation) + "/aletheia/models";
 }
 
 QStringList ModelPathResolver::legacyUserModelsDirs()
@@ -19,10 +16,12 @@ QStringList ModelPathResolver::legacyUserModelsDirs()
     const QString generic = QStandardPaths::writableLocation(
         QStandardPaths::GenericDataLocation);
     QStringList dirs;
-    // Caminho antigo da GUI (org/app "bg-remover" duplicava o nome).
+    // Caminhos antigos do bg-remover para compatibilidade perfeita
+    dirs << generic + "/bg-remover/models";
     dirs << generic + "/bg-remover/bg-remover/models";
-    // Caminho antigo do CLI (app "bg_remover_cli").
     dirs << generic + "/bg_remover_cli/models";
+    dirs << generic + "/aletheia/aletheia/models";
+    dirs << generic + "/aletheia_cli/models";
     // Variacoes de plataforma do AppLocalDataLocation.
     dirs << QStandardPaths::writableLocation(
                 QStandardPaths::AppLocalDataLocation) + "/models";
@@ -64,9 +63,11 @@ QStringList ModelPathResolver::candidates(const QString& modelName)
 #ifdef Q_OS_WIN
     paths << applicationDir.filePath("models/" + modelName);
 #else
+    paths << "/usr/share/aletheia/" + modelName;
     paths << "/usr/share/bg-remover/" + modelName;
 #endif
 #endif
+    paths << applicationDir.filePath("../share/aletheia/" + modelName);
     paths << applicationDir.filePath("../share/bg-remover/" + modelName);
     paths << userModelsDir() + "/" + modelName;
     for (const QString& dir : legacyUserModelsDirs())

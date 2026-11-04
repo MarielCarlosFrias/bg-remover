@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(bg_remover VERSION 1.2.0)
+project(aletheia VERSION 1.2.0)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -124,7 +124,7 @@ if(WIN32 AND NOT EXISTS "${ONNX_RUNTIME_PROVIDER_LIBRARY}")
         "${ONNX_RUNTIME_PROVIDER_LIBRARY}")
 endif()
 
-add_executable(bg_remover_gui
+add_executable(aletheia
     src/gui/main.cpp
     src/gui/mainwindow.cpp
     src/gui/mainwindow.h
@@ -147,32 +147,32 @@ add_executable(bg_remover_gui
     src/core/batchplan.h
     src/core/backgroundremover.cpp
     src/core/backgroundremover.h)
-target_link_libraries(bg_remover_gui
+target_link_libraries(aletheia
     Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Network Qt6::Concurrent
     onnxruntime)
-target_compile_definitions(bg_remover_gui PRIVATE
+target_compile_definitions(aletheia PRIVATE
     BG_REMOVER_VERSION="${PROJECT_VERSION}")
 if(APPLE)
     # App bundle nativo: o executavel fica em Contents/MacOS e as
     # bibliotecas (ONNX + Qt via macdeployqt) em Contents/Frameworks.
-    set_target_properties(bg_remover_gui PROPERTIES
+    set_target_properties(aletheia PROPERTIES
         MACOSX_BUNDLE TRUE
-        MACOSX_BUNDLE_BUNDLE_NAME "BG Remover"
+        MACOSX_BUNDLE_BUNDLE_NAME "Aletheia"
         MACOSX_BUNDLE_GUI_IDENTIFIER
-            "io.github.MarielCarlosFrias.BGRemover"
+            "io.github.MarielCarlosFrias.Aletheia"
         MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
         MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}"
         INSTALL_RPATH "@executable_path/../Frameworks"
         BUILD_RPATH "${ONNX_DIR}/lib"
     )
 elseif(NOT WIN32)
-    set_target_properties(bg_remover_gui PROPERTIES
-        INSTALL_RPATH "\$ORIGIN/../lib/bg-remover"
+    set_target_properties(aletheia PROPERTIES
+        INSTALL_RPATH "\$ORIGIN/../lib/aletheia"
         BUILD_RPATH "${ONNX_DIR}/lib"
     )
 endif()
 
-add_executable(bg_remover_cli
+add_executable(aletheia_cli
     src/cli/main_cli.cpp
     src/core/i18n.h
     src/core/batchprocessor.cpp
@@ -185,41 +185,41 @@ add_executable(bg_remover_cli
     src/core/processingoptions.h
     src/core/backgroundremover.cpp
     src/core/backgroundremover.h)
-target_link_libraries(bg_remover_cli
+target_link_libraries(aletheia_cli
     Qt6::Core Qt6::Gui onnxruntime)
-target_compile_definitions(bg_remover_cli PRIVATE
+target_compile_definitions(aletheia_cli PRIVATE
     BG_REMOVER_VERSION="${PROJECT_VERSION}")
 if(APPLE)
     # O CLI e instalado dentro do .app para partilhar os frameworks
     # Qt/ONNX e o modelo incluido em Contents/Resources.
-    set_target_properties(bg_remover_cli PROPERTIES
+    set_target_properties(aletheia_cli PROPERTIES
         INSTALL_RPATH "@executable_path/../Frameworks"
         BUILD_RPATH "${ONNX_DIR}/lib"
     )
 elseif(NOT WIN32)
-    set_target_properties(bg_remover_cli PROPERTIES
-        INSTALL_RPATH "\$ORIGIN/../lib/bg-remover"
+    set_target_properties(aletheia_cli PROPERTIES
+        INSTALL_RPATH "\$ORIGIN/../lib/aletheia"
         BUILD_RPATH "${ONNX_DIR}/lib"
     )
 endif()
 
 if(WIN32)
-    add_custom_command(TARGET bg_remover_gui POST_BUILD
+    add_custom_command(TARGET aletheia POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
             "${ONNX_DIR}/lib/onnxruntime.dll"
-            $<TARGET_FILE_DIR:bg_remover_gui>)
-    add_custom_command(TARGET bg_remover_gui POST_BUILD
+            $<TARGET_FILE_DIR:aletheia>)
+    add_custom_command(TARGET aletheia POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
             "${ONNX_RUNTIME_PROVIDER_LIBRARY}"
-            $<TARGET_FILE_DIR:bg_remover_gui>)
-    add_custom_command(TARGET bg_remover_cli POST_BUILD
+            $<TARGET_FILE_DIR:aletheia>)
+    add_custom_command(TARGET aletheia_cli POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
             "${ONNX_DIR}/lib/onnxruntime.dll"
-            $<TARGET_FILE_DIR:bg_remover_cli>)
-    add_custom_command(TARGET bg_remover_cli POST_BUILD
+            $<TARGET_FILE_DIR:aletheia_cli>)
+    add_custom_command(TARGET aletheia_cli POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
             "${ONNX_RUNTIME_PROVIDER_LIBRARY}"
-            $<TARGET_FILE_DIR:bg_remover_cli>)
+            $<TARGET_FILE_DIR:aletheia_cli>)
 endif()
 
 enable_testing()
@@ -343,7 +343,7 @@ if(NOT EXISTS "${CMAKE_SOURCE_DIR}/u2netp.onnx")
 endif()
 
 if(WIN32)
-    install(TARGETS bg_remover_gui bg_remover_cli RUNTIME DESTINATION .)
+    install(TARGETS aletheia aletheia_cli RUNTIME DESTINATION .)
     install(FILES "${CMAKE_SOURCE_DIR}/LICENSE" DESTINATION .)
     install(FILES "${ONNX_DIR}/LICENSE"
         DESTINATION . RENAME LICENSE.onnxruntime OPTIONAL)
@@ -355,7 +355,7 @@ if(WIN32)
     if(NOT EXISTS "${WINDEPLOYQT_EXECUTABLE}")
         message(FATAL_ERROR "windeployqt.exe nao encontrado: ${WINDEPLOYQT_EXECUTABLE}")
     endif()
-    install(CODE "execute_process(COMMAND \"${WINDEPLOYQT_EXECUTABLE}\" --no-translations --compiler-runtime \"\${CMAKE_INSTALL_PREFIX}/bg_remover_gui.exe\" RESULT_VARIABLE deploy_result)\nif(NOT deploy_result EQUAL 0)\n  message(FATAL_ERROR \"windeployqt falhou: \${deploy_result}\")\nendif()")
+    install(CODE "execute_process(COMMAND \"${WINDEPLOYQT_EXECUTABLE}\" --no-translations --compiler-runtime \"\${CMAKE_INSTALL_PREFIX}/aletheia.exe\" RESULT_VARIABLE deploy_result)\nif(NOT deploy_result EQUAL 0)\n  message(FATAL_ERROR \"windeployqt falhou: \${deploy_result}\")\nendif()")
 
     if(BG_REMOVER_BUNDLE_MODELS)
         install(FILES "${CMAKE_SOURCE_DIR}/u2netp.onnx" DESTINATION .)
@@ -365,7 +365,7 @@ if(WIN32)
     set(CPACK_GENERATOR "ZIP")
     # ZIP plano: exes e DLLs na raiz do arquivo (extrair -> executar).
     set(CPACK_INCLUDE_TOPLEVEL_DIRECTORY 0)
-    set(CPACK_PACKAGE_NAME "bg-remover")
+    set(CPACK_PACKAGE_NAME "aletheia")
     set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
     set(CPACK_PACKAGE_FILE_NAME
         "${CPACK_PACKAGE_NAME}_${CPACK_PACKAGE_VERSION}_win64")
@@ -373,75 +373,75 @@ elseif(APPLE)
     # Bundle arrastavel para /Applications. O CLI fica dentro do .app
     # para reutilizar os frameworks e o modelo, sem uma segunda copia
     # de Qt/ONNX no ZIP.
-    install(TARGETS bg_remover_gui BUNDLE DESTINATION .)
-    install(TARGETS bg_remover_cli
-        RUNTIME DESTINATION "bg_remover_gui.app/Contents/MacOS")
+    install(TARGETS aletheia BUNDLE DESTINATION .)
+    install(TARGETS aletheia_cli
+        RUNTIME DESTINATION "Aletheia.app/Contents/MacOS")
     install(FILES "${ONNX_RUNTIME_DYLIB}"
-        DESTINATION "bg_remover_gui.app/Contents/Frameworks")
+        DESTINATION "Aletheia.app/Contents/Frameworks")
     install(CODE "
         execute_process(COMMAND \"${CMAKE_COMMAND}\" -E remove -f
-            \"\${CMAKE_INSTALL_PREFIX}/bg_remover_gui.app/Contents/Frameworks/libonnxruntime.dylib\")
+            \"\${CMAKE_INSTALL_PREFIX}/Aletheia.app/Contents/Frameworks/libonnxruntime.dylib\")
         execute_process(COMMAND \"${CMAKE_COMMAND}\" -E create_symlink
             \"libonnxruntime.${ONNX_RUNTIME_VERSION}.dylib\"
-            \"\${CMAKE_INSTALL_PREFIX}/bg_remover_gui.app/Contents/Frameworks/libonnxruntime.dylib\")
+            \"\${CMAKE_INSTALL_PREFIX}/Aletheia.app/Contents/Frameworks/libonnxruntime.dylib\")
     ")
     install(FILES "${CMAKE_SOURCE_DIR}/LICENSE"
-        DESTINATION "bg_remover_gui.app/Contents/Resources"
+        DESTINATION "Aletheia.app/Contents/Resources"
         RENAME LICENSE.txt)
     install(FILES "${ONNX_DIR}/LICENSE"
-        DESTINATION "bg_remover_gui.app/Contents/Resources"
+        DESTINATION "Aletheia.app/Contents/Resources"
         RENAME LICENSE.onnxruntime.txt OPTIONAL)
     install(FILES "${ONNX_DIR}/ThirdPartyNotices.txt"
-        DESTINATION "bg_remover_gui.app/Contents/Resources" OPTIONAL)
-    install(FILES "${CMAKE_SOURCE_DIR}/assets/bg-remover.svg"
-        DESTINATION "bg_remover_gui.app/Contents/Resources")
-    install(FILES "${CMAKE_SOURCE_DIR}/assets/bg_remover_cli.1"
+        DESTINATION "Aletheia.app/Contents/Resources" OPTIONAL)
+    install(FILES "${CMAKE_SOURCE_DIR}/assets/aletheia.svg"
+        DESTINATION "Aletheia.app/Contents/Resources")
+    install(FILES "${CMAKE_SOURCE_DIR}/assets/aletheia_cli.1"
         DESTINATION share/man/man1)
     if(BG_REMOVER_BUNDLE_MODELS)
         install(FILES "${CMAKE_SOURCE_DIR}/u2netp.onnx"
-            DESTINATION "bg_remover_gui.app/Contents/Resources")
+            DESTINATION "Aletheia.app/Contents/Resources")
         install(FILES "${CMAKE_SOURCE_DIR}/u2net.onnx"
-            DESTINATION "bg_remover_gui.app/Contents/Resources" OPTIONAL)
+            DESTINATION "Aletheia.app/Contents/Resources" OPTIONAL)
     endif()
 
     set(CPACK_GENERATOR "ZIP")
     set(CPACK_INCLUDE_TOPLEVEL_DIRECTORY 0)
-    set(CPACK_PACKAGE_NAME "bg-remover")
+    set(CPACK_PACKAGE_NAME "aletheia")
     set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
     set(CPACK_PACKAGE_FILE_NAME
         "${CPACK_PACKAGE_NAME}_${CPACK_PACKAGE_VERSION}_macos_universal2")
 else()
-    install(TARGETS bg_remover_gui bg_remover_cli
+    install(TARGETS aletheia aletheia_cli
         RUNTIME DESTINATION bin)
     file(GLOB ONNX_RUNTIME_LIBS
         "${ONNX_DIR}/lib/libonnxruntime.so*")
     install(FILES ${ONNX_RUNTIME_LIBS}
-        DESTINATION lib/bg-remover)
+        DESTINATION lib/aletheia)
     install(FILES "${ONNX_DIR}/LICENSE"
-        DESTINATION share/doc/bg-remover
+        DESTINATION share/doc/aletheia
         RENAME LICENSE.onnxruntime OPTIONAL)
     install(FILES "${ONNX_DIR}/ThirdPartyNotices.txt"
-        DESTINATION share/doc/bg-remover OPTIONAL)
+        DESTINATION share/doc/aletheia OPTIONAL)
     install(FILES "${CMAKE_SOURCE_DIR}/LICENSE"
-        DESTINATION share/doc/bg-remover)
+        DESTINATION share/doc/aletheia)
     if(BG_REMOVER_BUNDLE_MODELS)
         install(FILES "${CMAKE_SOURCE_DIR}/u2netp.onnx"
-            DESTINATION share/bg-remover)
+            DESTINATION share/aletheia)
         install(FILES "${CMAKE_SOURCE_DIR}/u2net.onnx"
-            DESTINATION share/bg-remover OPTIONAL)
+            DESTINATION share/aletheia OPTIONAL)
     endif()
-    install(FILES "${CMAKE_SOURCE_DIR}/assets/bg-remover.desktop"
+    install(FILES "${CMAKE_SOURCE_DIR}/assets/aletheia.desktop"
         DESTINATION share/applications)
     install(FILES
-        "${CMAKE_SOURCE_DIR}/assets/io.github.MarielCarlosFrias.BGRemover.metainfo.xml"
+        "${CMAKE_SOURCE_DIR}/assets/io.github.MarielCarlosFrias.Aletheia.metainfo.xml"
         DESTINATION share/metainfo)
-    install(FILES "${CMAKE_SOURCE_DIR}/assets/bg-remover.svg"
+    install(FILES "${CMAKE_SOURCE_DIR}/assets/aletheia.svg"
         DESTINATION share/icons/hicolor/scalable/apps)
-    install(FILES "${CMAKE_SOURCE_DIR}/assets/bg_remover_cli.1"
+    install(FILES "${CMAKE_SOURCE_DIR}/assets/aletheia_cli.1"
         DESTINATION share/man/man1)
 
     set(CPACK_GENERATOR "DEB")
-    set(CPACK_PACKAGE_NAME "bg-remover")
+    set(CPACK_PACKAGE_NAME "aletheia")
     set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
     set(CPACK_PACKAGE_FILE_NAME
         "${CPACK_PACKAGE_NAME}_${CPACK_PACKAGE_VERSION}_amd64")
@@ -459,15 +459,15 @@ else()
     # Uma unica string: varios argumentos viram uma lista CMake e o
     # CPack junta-os com ';' na descricao do pacote.
     set(CPACK_DEBIAN_PACKAGE_DESCRIPTION
-        "Removes backgrounds from images using the U²-Netp or U²-Net ONNX models. GUI and CLI batch processing.")
+        "Removes backgrounds from images using neural network ONNX models and Chroma Key. GUI and CLI batch processing.")
     set(CPACK_STRIP_FILES ON)
 endif()
 
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY
-    "Background remover using U²-Netp")
+    "Image background remover powered by AI and Chroma Key")
 set(CPACK_SOURCE_IGNORE_FILES
     "/\\.git/;/.github/;/.codex/;/.agents/;/build[^/]*/;"
     "/onnxruntime-[^/]*/;/_rembg[^/]*/;/imagens[^/]*/;"
-    "/.*\\.onnx$;/.*\\.bak$;/bg_remover_cli$")
+    "/.*\\.onnx$;/.*\\.bak$;/bg_remover_cli$;/aletheia$;/aletheia_cli$")
 
 include(CPack)

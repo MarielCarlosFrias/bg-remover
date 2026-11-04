@@ -96,27 +96,27 @@ jobs:
       - name: Install and deploy bundle
         run: |
           cmake --install build --prefix "$PWD/dist"
-          APP=dist/bg_remover_gui.app
+          APP=dist/Aletheia.app
           "$QT_DIR/bin/macdeployqt" "$APP" -always-overwrite \
-            -executable="$APP/Contents/MacOS/bg_remover_cli"
+            -executable="$APP/Contents/MacOS/aletheia_cli"
 
       - name: Verify bundle
         run: |
-          APP=dist/bg_remover_gui.app
-          test -x "$APP/Contents/MacOS/bg_remover_gui"
-          test -x "$APP/Contents/MacOS/bg_remover_cli"
+          APP=dist/Aletheia.app
+          test -x "$APP/Contents/MacOS/aletheia"
+          test -x "$APP/Contents/MacOS/aletheia_cli"
           test -f "$APP/Contents/Frameworks/libonnxruntime.dylib"
           ls -l "$APP/Contents/Frameworks"/libonnxruntime*.dylib
-          echo "=== Dependencias de bg_remover_gui ==="
-          otool -L "$APP/Contents/MacOS/bg_remover_gui"
-          echo "=== Dependencias de bg_remover_cli ==="
-          otool -L "$APP/Contents/MacOS/bg_remover_cli"
-          otool -L "$APP/Contents/MacOS/bg_remover_gui" | grep -q onnxruntime
-          otool -L "$APP/Contents/MacOS/bg_remover_cli" | grep -q onnxruntime
-          otool -l "$APP/Contents/MacOS/bg_remover_cli" | grep -q '@executable_path/../Frameworks'
-          ! otool -L "$APP/Contents/MacOS/bg_remover_gui" | grep -q "$QT_DIR"
-          ! otool -L "$APP/Contents/MacOS/bg_remover_cli" | grep -q "$QT_DIR"
-          "$APP/Contents/MacOS/bg_remover_cli" --version
+          echo "=== Dependencias de aletheia ==="
+          otool -L "$APP/Contents/MacOS/aletheia"
+          echo "=== Dependencias de aletheia_cli ==="
+          otool -L "$APP/Contents/MacOS/aletheia_cli"
+          otool -L "$APP/Contents/MacOS/aletheia" | grep -q onnxruntime
+          otool -L "$APP/Contents/MacOS/aletheia_cli" | grep -q onnxruntime
+          otool -l "$APP/Contents/MacOS/aletheia_cli" | grep -q '@executable_path/../Frameworks'
+          ! otool -L "$APP/Contents/MacOS/aletheia" | grep -q "$QT_DIR"
+          ! otool -L "$APP/Contents/MacOS/aletheia_cli" | grep -q "$QT_DIR"
+          "$APP/Contents/MacOS/aletheia_cli" --version
 
   windows:
     # Imagem fixada: o install-qt-action v4 falha na imagem 2025.
@@ -196,5 +196,5 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: bg-remover-windows-portable
+          name: aletheia-windows-portable
           path: dist/*.zip

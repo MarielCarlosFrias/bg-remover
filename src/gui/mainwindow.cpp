@@ -273,9 +273,9 @@ MainWindow::MainWindow(QWidget* parent, const QString& modelPath)
     auto* headerLayout = new QHBoxLayout(header);
     headerLayout->setContentsMargins(18, 0, 18, 0);
     headerLayout->setSpacing(10);
-    auto* brandMark = new QLabel("B");
+    auto* brandMark = new QLabel("A");
     brandMark->setObjectName("brandMark");
-    auto* title = new QLabel("BG Remover");
+    auto* title = new QLabel("Aletheia");
     title->setObjectName("appTitle");
     auto* subtitle = new QLabel(TR("Editor de fundo local",
                                    "Local background editor"));
@@ -308,11 +308,11 @@ MainWindow::MainWindow(QWidget* parent, const QString& modelPath)
     connect(langCombo_, QOverload<int>::of(
                 &QComboBox::currentIndexChanged),
             this, [this](int idx) {
-        QSettings settings("bg-remover", "bg-remover");
+        QSettings settings("aletheia", "aletheia");
         settings.setValue("lang", idx == 1 ? "en" : "pt");
         QMessageBox::information(this, TR("Idioma", "Language"),
-            TR("O idioma sera aplicado ao reiniciar o BG Remover.",
-               "The language will be applied after restarting BG Remover."));
+            TR("O idioma sera aplicado ao reiniciar o Aletheia.",
+               "The language will be applied after restarting Aletheia."));
     });
 
     auto* originalPanel = new QFrame;
@@ -635,7 +635,7 @@ MainWindow::MainWindow(QWidget* parent, const QString& modelPath)
     // AppTheme::apply() em main.cpp; o botao de tema alterna
     // em tempo de execucao e persiste em QSettings.
 
-    setWindowTitle("BG Remover " BG_REMOVER_VERSION);
+    setWindowTitle("Aletheia " BG_REMOVER_VERSION);
     setMinimumSize(980, 680);
     resize(1320, 860);
 
@@ -783,7 +783,7 @@ MainWindow::MainWindow(QWidget* parent, const QString& modelPath)
     // prioridade; sem argumento, usa o ultimo guardado em QSettings.
     QString preferred = modelPath;
     if (preferred.isEmpty()) {
-        preferred = QSettings("bg-remover", "bg-remover")
+        preferred = QSettings("aletheia", "aletheia")
                         .value("model/path").toString();
     }
     if (!preferred.isEmpty()) {
@@ -1117,7 +1117,7 @@ void MainWindow::saveResult() {
     }
 
     const QString extension = saveFormatExtension();
-    QSettings settings("bg-remover", "bg-remover");
+    QSettings settings("aletheia", "aletheia");
     QString startDir = settings.value("output/lastSaveDir").toString();
     if (startDir.isEmpty() || !QDir(startDir).exists()) {
         startDir = currentImagePath_.isEmpty()
@@ -1237,8 +1237,9 @@ void MainWindow::checkForUpdate()
     // deve incomodar quem trabalha offline. A verificacao pode ser
     // desativada por variavel de ambiente ou QSettings; nao envia
     // imagens, apenas consulta a API publica de releases.
-    if (qEnvironmentVariableIsSet("BG_REMOVER_NO_UPDATE_CHECK")) return;
-    if (!QSettings("bg-remover", "bg-remover")
+    if (qEnvironmentVariableIsSet("ALETHEIA_NO_UPDATE_CHECK") ||
+        qEnvironmentVariableIsSet("BG_REMOVER_NO_UPDATE_CHECK")) return;
+    if (!QSettings("aletheia", "aletheia")
              .value("update/check", true).toBool()) {
         return;
     }
@@ -1250,7 +1251,7 @@ void MainWindow::checkForUpdate()
         "/releases/latest")));
     request.setRawHeader("Accept", "application/vnd.github+json");
     request.setRawHeader("User-Agent",
-                         QByteArray("bg-remover/") + BG_REMOVER_VERSION);
+                         QByteArray("aletheia/") + BG_REMOVER_VERSION);
     request.setTransferTimeout(5000);
     request.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
                          QNetworkRequest::NoLessSafeRedirectPolicy);
@@ -1504,7 +1505,7 @@ void MainWindow::populateModelCombo()
 
 void MainWindow::restoreSettings()
 {
-    QSettings settings("bg-remover", "bg-remover");
+    QSettings settings("aletheia", "aletheia");
     const QByteArray geometry =
         settings.value("ui/geometry").toByteArray();
     if (!geometry.isEmpty()) restoreGeometry(geometry);
@@ -1548,7 +1549,7 @@ void MainWindow::restoreSettings()
 
 void MainWindow::saveSettings()
 {
-    QSettings settings("bg-remover", "bg-remover");
+    QSettings settings("aletheia", "aletheia");
     settings.setValue("ui/geometry", saveGeometry());
     settings.setValue("batch/inputDir", folderEdit_->text());
     settings.setValue("batch/outputDir", outputDirEdit_->text());

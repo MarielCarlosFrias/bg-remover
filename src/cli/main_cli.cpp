@@ -19,7 +19,7 @@ const QString kVersion = QStringLiteral("1.0.0");
 
 int main(int argc, char* argv[]) {
     QCoreApplication app(argc, argv);
-    app.setApplicationName("bg_remover_cli");
+    app.setApplicationName("aletheia_cli");
     app.setApplicationVersion(kVersion);
 
     QCommandLineParser parser;
@@ -73,13 +73,13 @@ int main(int argc, char* argv[]) {
         std::cout << parser.helpText().toStdString()
                   << I18n::tr(
                          "\nExemplos:\n"
-                         "  bg_remover_cli ~/imagens ~/saida\n"
-                         "  bg_remover_cli ~/imagens --model u2net.onnx\n"
-                         "  bg_remover_cli ~/imagens -o ~/saida -m u2net.onnx\n",
+                         "  aletheia_cli ~/imagens ~/saida\n"
+                         "  aletheia_cli ~/imagens --model u2net.onnx\n"
+                         "  aletheia_cli ~/imagens -o ~/saida -m u2net.onnx\n",
                          "\nExamples:\n"
-                         "  bg_remover_cli ~/pictures ~/output\n"
-                         "  bg_remover_cli ~/pictures --model u2net.onnx\n"
-                         "  bg_remover_cli ~/pictures -o ~/output -m u2net.onnx\n")
+                         "  aletheia_cli ~/pictures ~/output\n"
+                         "  aletheia_cli ~/pictures --model u2net.onnx\n"
+                         "  aletheia_cli ~/pictures -o ~/output -m u2net.onnx\n")
                          .toStdString()
                   << std::flush;
     };

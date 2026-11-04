@@ -12,7 +12,7 @@ static constexpr float MEAN[3] = {0.485f, 0.456f, 0.406f};
 static constexpr float STD[3]  = {0.229f, 0.224f, 0.225f};
 
 BackgroundRemover::BackgroundRemover(const QString& modelPath)
-    : env_(ORT_LOGGING_LEVEL_WARNING, "bg-remover"),
+    : env_(ORT_LOGGING_LEVEL_WARNING, "aletheia"),
       session_(nullptr)
 {
     Ort::SessionOptions sess_opts;

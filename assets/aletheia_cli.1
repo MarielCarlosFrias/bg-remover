@@ -1,21 +1,23 @@
-.TH BG_REMOVER_CLI 1 "2026-11-03" "bg-remover 1.1.0" "User Commands"
+.TH ALETHEIA_CLI 1 "2026-11-04" "Aletheia 1.2.0" "User Commands"
 .SH NAME
-bg_remover_cli \- remove image backgrounds in batch
+aletheia_cli \- remove image backgrounds in batch
 .SH SYNOPSIS
-.B bg_remover_cli
+.B aletheia_cli
 .RB [ \-o
 .IR output_directory ]
 .RB [ \-m
 .IR model.onnx ]
+.RB [ \-f
+.IR format ]
 .I input_directory
 .RI [ output_directory ]
 .RI [ model.onnx ]
 .SH DESCRIPTION
-.B bg_remover_cli
+.B aletheia_cli
 loads an ONNX background-removal model and processes every supported
 image in
 .IR input_directory .
-Results are written as PNG files with the suffix
+Results are written with the suffix
 .B _rembg
 and never overwrite existing files.
 .PP
@@ -54,12 +56,15 @@ Use
 .IR model.onnx
 instead of the default model. Equivalent to the third positional
 argument.
+.TP
+.BI \-f ", " \-\-format " " format
+Set output format (png, jpg, webp). Defaults to png.
 .SH EXAMPLES
 Process a folder with the default model:
 .PP
 .nf
 .RS
-bg_remover_cli ~/Pictures/input ~/Pictures/output
+aletheia_cli ~/Pictures/input ~/Pictures/output
 .RE
 .fi
 .PP
@@ -67,7 +72,7 @@ Use long options:
 .PP
 .nf
 .RS
-bg_remover_cli ~/Pictures/input --output ~/Pictures/output --model u2net.onnx
+aletheia_cli ~/Pictures/input --output ~/Pictures/output --model u2net.onnx --format webp
 .RE
 .fi
 .PP
@@ -75,7 +80,7 @@ Use a specific model:
 .PP
 .nf
 .RS
-bg_remover_cli ~/Pictures/input ~/Pictures/output u2net.onnx
+aletheia_cli ~/Pictures/input ~/Pictures/output u2net.onnx
 .RE
 .fi
 .SH EXIT STATUS

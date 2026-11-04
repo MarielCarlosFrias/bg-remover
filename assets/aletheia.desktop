@@ -1,0 +1,13 @@
+[Desktop Entry]
+Name=Aletheia
+GenericName=Background Remover
+Comment=Remove backgrounds from images using AI and Chroma Key
+Exec=aletheia %f
+TryExec=aletheia
+Icon=aletheia
+Terminal=false
+Type=Application
+Categories=Graphics;2DGraphics;
+Keywords=background;remove;cutout;transparency;image;photo;aletheia;chroma;
+MimeType=image/png;image/jpeg;image/webp;image/bmp;image/tiff;
+StartupWMClass=aletheia

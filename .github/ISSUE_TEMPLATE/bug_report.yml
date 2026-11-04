@@ -1,18 +1,18 @@
 name: Relatar um bug
-description: Informe um comportamento inesperado no BG Remover.
+description: Informe um comportamento inesperado no Aletheia.
 title: "[Bug]: "
 labels: ["bug"]
 body:
   - type: markdown
     attributes:
       value: |
-        Obrigado por ajudar a melhorar o BG Remover. Preencha o máximo de
+        Obrigado por ajudar a melhorar o Aletheia. Preencha o máximo de
         informação possível. Para vulnerabilidades, use o canal privado
         descrito em SECURITY.md.
   - type: input
     id: version
     attributes:
-      label: Versão do BG Remover
+      label: Versão do Aletheia
       description: Aparece no título da janela, em `--version` ou na release.
       placeholder: "1.1.0"
     validations:

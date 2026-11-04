@@ -235,20 +235,24 @@ void apply(bool dark)
 
 bool isDark()
 {
-    const QString env = qEnvironmentVariable("BG_REMOVER_THEME")
-                            .toLower();
+    QString env = qEnvironmentVariable("ALETHEIA_THEME").toLower();
+    if (env.isEmpty()) env = qEnvironmentVariable("BG_REMOVER_THEME").toLower();
     if (env == "dark") return true;
     if (env == "light") return false;
 
-    QSettings settings("bg-remover", "bg-remover");
-    return settings.value("theme/dark", true).toBool();
+    QSettings settings("aletheia", "aletheia");
+    if (settings.contains("theme/dark")) {
+        return settings.value("theme/dark", true).toBool();
+    }
+    QSettings legacySettings("bg-remover", "bg-remover");
+    return legacySettings.value("theme/dark", true).toBool();
 }
 
 bool toggle()
 {
     const bool dark = !isDark();
     apply(dark);
-    QSettings settings("bg-remover", "bg-remover");
+    QSettings settings("aletheia", "aletheia");
     settings.setValue("theme/dark", dark);
     return dark;
 }

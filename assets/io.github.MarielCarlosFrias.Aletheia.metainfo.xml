@@ -1,36 +1,36 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <component type="desktop-application">
-  <id>io.github.MarielCarlosFrias.BGRemover</id>
+  <id>io.github.MarielCarlosFrias.Aletheia</id>
   <metadata_license>MIT</metadata_license>
   <project_license>MIT</project_license>
-  <name>BG Remover</name>
+  <name>Aletheia</name>
   <summary>Remove image backgrounds locally</summary>
   <summary xml:lang="pt-BR">Remova fundos de imagens localmente</summary>
 
   <description>
     <p>
-      BG Remover removes backgrounds from images using U²-Net ONNX models
-      that run entirely on your computer. Images are never uploaded.
+      Aletheia removes backgrounds from images using neural network ONNX models
+      and Chroma Key / Color removal that run entirely on your computer. Images are never uploaded.
     </p>
     <p>
       The desktop application includes mask editing with restore/erase
-      brushes, before/after comparison, PNG/JPEG/WebP export and batch
-      processing. A command-line tool is included for automation.
+      brushes, before/after comparison, PNG/JPEG/WebP export, auto-crop, sticker outlines,
+      shadows and batch processing. A command-line tool is included for automation.
     </p>
     <p xml:lang="pt-BR">
-      O BG Remover remove o fundo de imagens com modelos ONNX U²-Net que
-      são executados inteiramente no seu computador. As imagens nunca são
+      O Aletheia remove o fundo de imagens com modelos de redes neurais ONNX
+      e Chroma Key / Remoção por cor executados inteiramente no seu computador. As imagens nunca são
       enviadas para serviços externos.
     </p>
     <p xml:lang="pt-BR">
       O aplicativo inclui edição da máscara com pincéis Restaurar/Apagar,
-      comparação antes/depois, exportação em PNG/JPEG/WebP e processamento
-      em lote. Também inclui uma ferramenta de linha de comando para
+      comparação antes/depois, exportação em PNG/JPEG/WebP, auto-crop, efeito sticker,
+      sombras e processamento em lote. Também inclui uma ferramenta de linha de comando para
       automação.
     </p>
   </description>
 
-  <launchable type="desktop-id">bg-remover.desktop</launchable>
+  <launchable type="desktop-id">aletheia.desktop</launchable>
   <url type="homepage">https://github.com/MarielCarlosFrias/bg-remover</url>
   <url type="bugtracker">https://github.com/MarielCarlosFrias/bg-remover/issues</url>
   <url type="vcs-browser">https://github.com/MarielCarlosFrias/bg-remover</url>
@@ -52,6 +52,8 @@
     <keyword>transparency</keyword>
     <keyword>image</keyword>
     <keyword>photo</keyword>
+    <keyword>aletheia</keyword>
+    <keyword>chroma</keyword>
   </keywords>
 
   <screenshots>
@@ -63,6 +65,7 @@
   </screenshots>
 
   <releases>
+    <release version="1.2.0" date="2026-11-04"/>
     <release version="1.1.0" date="2026-11-01"/>
   </releases>
 

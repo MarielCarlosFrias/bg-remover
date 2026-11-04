@@ -7,8 +7,8 @@
 
 int main(int argc, char* argv[]) {
     QApplication app(argc, argv);
-    QApplication::setOrganizationName("bg-remover");
-    QApplication::setApplicationName("bg-remover");
+    QApplication::setOrganizationName("aletheia");
+    QApplication::setApplicationName("aletheia");
 
     // Tema escuro/claro: env BG_REMOVER_THEME=dark|light tem prioridade,
     // caso contrario usa (e grava em) QSettings.

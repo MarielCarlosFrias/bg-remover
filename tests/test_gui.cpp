@@ -93,8 +93,8 @@ int main(int argc, char* argv[])
     auto* tabs = window.findChild<QTabWidget*>("mainTabs");
     CHECK(tabs != nullptr, "aba principal existe");
     CHECK(tabs && tabs->count() == 3, "tres abas: Editor, Modelos, Ajuda");
-    CHECK(window.windowTitle().startsWith("BG Remover"),
-          "titulo da janela contem BG Remover");
+    CHECK(window.windowTitle().startsWith("Aletheia"),
+          "titulo da janela contem Aletheia");
 
     // ---- 2. Idioma e seletor ----
     auto* lang = window.findChild<QComboBox*>("langCombo");

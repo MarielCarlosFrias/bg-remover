@@ -86,17 +86,17 @@ jobs:
           export VERSION="${GITHUB_REF_NAME#v}"
           export UPDATE_DESKTOP_FILE=1
           /tmp/linuxdeploy-x86_64.AppImage --appdir appdir \
-            -e appdir/usr/bin/bg_remover_gui \
-            -e appdir/usr/bin/bg_remover_cli \
-            -i appdir/usr/share/icons/hicolor/scalable/apps/bg-remover.svg \
-            -d appdir/usr/share/applications/bg-remover.desktop \
+            -e appdir/usr/bin/aletheia \
+            -e appdir/usr/bin/aletheia_cli \
+            -i appdir/usr/share/icons/hicolor/scalable/apps/aletheia.svg \
+            -d appdir/usr/share/applications/aletheia.desktop \
             --plugin qt --output appimage
-          mv *.AppImage "bg-remover_${VERSION}_amd64.AppImage"
-          ls -la bg-remover_*.AppImage
+          mv *.AppImage "aletheia_${VERSION}_amd64.AppImage"
+          ls -la aletheia_*.AppImage
       - uses: actions/upload-artifact@v4
         with:
           name: linux-appimage
-          path: bg-remover_*_amd64.AppImage
+          path: aletheia_*_amd64.AppImage
 
   windows-zip:
     runs-on: windows-2022
@@ -170,34 +170,34 @@ jobs:
       - name: Install and deploy bundle
         run: |
           cmake --install build
-          APP=dist/bg_remover_gui.app
+          APP=dist/Aletheia.app
           "$QT_DIR/bin/macdeployqt" "$APP" -always-overwrite \
-            -executable="$APP/Contents/MacOS/bg_remover_cli"
+            -executable="$APP/Contents/MacOS/aletheia_cli"
       - name: Verify and package
         run: |
-          APP=dist/bg_remover_gui.app
-          test -x "$APP/Contents/MacOS/bg_remover_gui"
-          test -x "$APP/Contents/MacOS/bg_remover_cli"
+          APP=dist/Aletheia.app
+          test -x "$APP/Contents/MacOS/aletheia"
+          test -x "$APP/Contents/MacOS/aletheia_cli"
           test -f "$APP/Contents/Resources/u2netp.onnx"
           test -f "$APP/Contents/Frameworks/libonnxruntime.dylib"
-          echo "=== Dependencias de bg_remover_gui ==="
-          otool -L "$APP/Contents/MacOS/bg_remover_gui"
-          echo "=== Dependencias de bg_remover_cli ==="
-          otool -L "$APP/Contents/MacOS/bg_remover_cli"
-          otool -L "$APP/Contents/MacOS/bg_remover_gui" | grep -q onnxruntime
-          otool -L "$APP/Contents/MacOS/bg_remover_cli" | grep -q onnxruntime
-          otool -l "$APP/Contents/MacOS/bg_remover_cli" | grep -q '@executable_path/../Frameworks'
-          ! otool -L "$APP/Contents/MacOS/bg_remover_gui" | grep -q "$QT_DIR"
-          ! otool -L "$APP/Contents/MacOS/bg_remover_cli" | grep -q "$QT_DIR"
-          "$APP/Contents/MacOS/bg_remover_cli" --version
+          echo "=== Dependencias de aletheia ==="
+          otool -L "$APP/Contents/MacOS/aletheia"
+          echo "=== Dependencias de aletheia_cli ==="
+          otool -L "$APP/Contents/MacOS/aletheia_cli"
+          otool -L "$APP/Contents/MacOS/aletheia" | grep -q onnxruntime
+          otool -L "$APP/Contents/MacOS/aletheia_cli" | grep -q onnxruntime
+          otool -l "$APP/Contents/MacOS/aletheia_cli" | grep -q '@executable_path/../Frameworks'
+          ! otool -L "$APP/Contents/MacOS/aletheia" | grep -q "$QT_DIR"
+          ! otool -L "$APP/Contents/MacOS/aletheia_cli" | grep -q "$QT_DIR"
+          "$APP/Contents/MacOS/aletheia_cli" --version
           codesign --force --deep --sign - "$APP"
           VERSION="${GITHUB_REF_NAME#v}"
-          ditto -c -k --keepParent "$APP" "bg-remover_${VERSION}_macos_universal2.zip"
-          ls -lh bg-remover_*_macos_universal2.zip
+          ditto -c -k --keepParent "$APP" "aletheia_${VERSION}_macos_universal2.zip"
+          ls -lh aletheia_*_macos_universal2.zip
       - uses: actions/upload-artifact@v4
         with:
           name: macos-zip
-          path: bg-remover_*_macos_universal2.zip
+          path: aletheia_*_macos_universal2.zip
 
   publish:
     needs: [linux-deb, linux-appimage, windows-zip, macos-zip]
@@ -217,7 +217,7 @@ jobs:
         # ficheiro que os utilizadores usam para verificar downloads.
         working-directory: dist
         run: |
-          sha256sum bg-remover_* > SHA256SUMS
+          sha256sum aletheia_* > SHA256SUMS
           cat SHA256SUMS
       - uses: softprops/action-gh-release@v2
         with:

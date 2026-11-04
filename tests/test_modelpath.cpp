@@ -61,7 +61,7 @@ int main(int argc, char* argv[])
         const QString models =
             ModelPathResolver::userModelsDir();
         CHECK(!models.isEmpty(), "caso3: userModelsDir() nao e vazio");
-        CHECK(models.endsWith("/bg-remover/models"),
+        CHECK(models.endsWith("/aletheia/models"),
               "caso3: userModelsDir() e canonico e nao depende do app");
         CHECK(models.contains(QDir::separator())
                   || !models.isEmpty(),

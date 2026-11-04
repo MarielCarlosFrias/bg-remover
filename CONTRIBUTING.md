@@ -1,4 +1,4 @@
-# Contribuir com o BG Remover
+# Contribuir com o Aletheia
 
 Obrigado pelo interesse! Este projeto é um aplicativo desktop em C++17/Qt 6 que
 executa modelos ONNX localmente. Contribuições de código, documentação,

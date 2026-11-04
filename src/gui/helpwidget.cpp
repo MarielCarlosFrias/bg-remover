@@ -99,7 +99,7 @@ void HelpWidget::rebuildHtml()
 
     // Cabeçalho e garantia de privacidade
     html += QString(
-        "<h1>BG Remover %1</h1>"
+        "<h1>Aletheia %1</h1>"
         "<table width=\"100%\" cellpadding=\"12\" cellspacing=\"0\" style=\"border-radius:6px;\">"
         "<tr><td bgcolor=\"%2\" style=\"border-radius:6px;\"><b><span style=\"font-size:14px; color:%3\">"
         "\U0001F512 %4"
@@ -211,8 +211,8 @@ void HelpWidget::rebuildHtml()
         "<span style=\"color:%2\">"
         "%3<br><br>"
         "<b>%4:</b><br>"
-        "<code>bg_remover_cli ~/imagens -o ~/saida -m u2net.onnx -f png</code><br>"
-        "<code>bg_remover_cli --help</code>"
+        "<code>aletheia_cli ~/imagens -o ~/saida -m u2net.onnx -f png</code><br>"
+        "<code>aletheia_cli --help</code>"
         "</span></td>"
         "</tr></table><br>")
         .arg(card, muted,

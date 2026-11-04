@@ -40,8 +40,8 @@ Fora do âmbito, normalmente:
 
 ## Privacidade
 
-O BG Remover não envia imagens para servidores. A única ligação de rede
+O Aletheia não envia imagens para servidores. A única ligação de rede
 automática é a consulta à API pública de releases do GitHub para avisar sobre
 novas versões. Ela pode ser desativada com
-`BG_REMOVER_NO_UPDATE_CHECK=1` ou com `update/check=false` nas configurações.
+`ALETHEIA_NO_UPDATE_CHECK=1` (ou `BG_REMOVER_NO_UPDATE_CHECK=1`) ou com `update/check=false` nas configurações.
 Os downloads de modelos só acontecem quando o utilizador os inicia.

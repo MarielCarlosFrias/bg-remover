@@ -17,12 +17,17 @@ enum class Lang { PtBr, En };
 
 inline Lang detectLang()
 {
-    const QString env = qEnvironmentVariable("BG_REMOVER_LANG").toLower();
+    QString env = qEnvironmentVariable("ALETHEIA_LANG").toLower();
+    if (env.isEmpty()) env = qEnvironmentVariable("BG_REMOVER_LANG").toLower();
     if (env == "en") return Lang::En;
     if (env == "pt") return Lang::PtBr;
 
-    QSettings settings("bg-remover", "bg-remover");
-    const QString saved = settings.value("lang").toString();
+    QSettings settings("aletheia", "aletheia");
+    QString saved = settings.value("lang").toString();
+    if (saved.isEmpty()) {
+        QSettings legacySettings("bg-remover", "bg-remover");
+        saved = legacySettings.value("lang").toString();
+    }
     if (saved == "en") return Lang::En;
     if (saved == "pt") return Lang::PtBr;
 
