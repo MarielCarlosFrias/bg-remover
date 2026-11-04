@@ -132,6 +132,8 @@ add_executable(aletheia
     src/gui/maskeditcanvas.h
     src/gui/helpwidget.cpp
     src/gui/helpwidget.h
+    src/gui/collapsiblesection.cpp
+    src/gui/collapsiblesection.h
     src/gui/apptheme.cpp
     src/gui/apptheme.h
     src/core/i18n.h
@@ -274,6 +276,8 @@ add_executable(test_gui
     src/gui/maskeditcanvas.h
     src/gui/helpwidget.cpp
     src/gui/helpwidget.h
+    src/gui/collapsiblesection.cpp
+    src/gui/collapsiblesection.h
     src/gui/apptheme.cpp
     src/gui/apptheme.h
     src/core/i18n.h

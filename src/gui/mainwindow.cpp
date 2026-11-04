@@ -2,6 +2,7 @@
 #include "i18n.h"
 #include "maskeditcanvas.h"
 #include "helpwidget.h"
+#include "collapsiblesection.h"
 #include "imagepostprocessor.h"
 #include "modelmanager.h"
 #include "modelpathresolver.h"
@@ -399,18 +400,18 @@ MainWindow::MainWindow(QWidget* parent, const QString& modelPath)
     inspector->setObjectName("inspector");
     auto* inspectorLayout = new QVBoxLayout(inspector);
     inspectorLayout->setContentsMargins(12, 12, 12, 12);
-    inspectorLayout->setSpacing(7);
-    auto sectionTitle = [](const QString& text) {
-        auto* label = new QLabel(text);
-        label->setObjectName("inspectorTitle");
-        return label;
-    };
-    inspectorLayout->addWidget(sectionTitle(
-        TR("Remover fundo", "Remove background")));
+    inspectorLayout->setSpacing(4);
+
+    // O inspector passa a ter seccoes colapsaveis: a principal (acao
+    // de remover) comeca aberta; as restantes comecam fechadas para o
+    // painel nao parecer uma lista infinita de opcoes.
+    auto* secRemove = new CollapsibleSection(
+        TR("Remover fundo", "Remove background"), true, this);
+    auto* secRemoveLayout = secRemove->contentLayout();
 
     removalMethodCombo_->addItem(TR("🧠 IA (Rede neural)", "🧠 AI (Neural network)"));
     removalMethodCombo_->addItem(TR("🎨 Cor / Chroma Key (Pixel Art)", "🎨 Color / Chroma Key (Pixel Art)"));
-    inspectorLayout->addWidget(removalMethodCombo_);
+    secRemoveLayout->addWidget(removalMethodCombo_);
 
     // Modo 1: IA
     auto* aiLayout = new QVBoxLayout(aiRemovalWidget_);
@@ -428,7 +429,7 @@ MainWindow::MainWindow(QWidget* parent, const QString& modelPath)
     btnRemove_->setObjectName("primaryAction");
     btnRemove_->setMinimumHeight(38);
     aiLayout->addWidget(btnRemove_);
-    inspectorLayout->addWidget(aiRemovalWidget_);
+    secRemoveLayout->addWidget(aiRemovalWidget_);
 
     // Modo 2: Cor / Chroma Key (Pixel Art)
     auto* colorLayout = new QVBoxLayout(colorRemovalWidget_);
@@ -471,14 +472,14 @@ MainWindow::MainWindow(QWidget* parent, const QString& modelPath)
     btnRemoveByColor_->setMinimumHeight(38);
     colorLayout->addWidget(btnRemoveByColor_);
     colorRemovalWidget_->setVisible(false);
-    inspectorLayout->addWidget(colorRemovalWidget_);
+    secRemoveLayout->addWidget(colorRemovalWidget_);
 
-    auto* separatorOne = new QFrame;
-    separatorOne->setObjectName("inspectorSeparator");
-    separatorOne->setFrameShape(QFrame::HLine);
-    inspectorLayout->addWidget(separatorOne);
-    inspectorLayout->addWidget(sectionTitle(
-        TR("Ajustes de saída", "Output adjustments")));
+    // Fim da seccao 1: fecha o colapsavel e adiciona a seccao 2.
+    inspectorLayout->addWidget(secRemove);
+
+    auto* secOutput = new CollapsibleSection(
+        TR("Ajustes de saída", "Output adjustments"), false, this);
+    auto* secOutputLayout = secOutput->contentLayout();
     auto* outputForm = new QFormLayout;
     outputForm->setRowWrapPolicy(QFormLayout::WrapAllRows);
     outputForm->addRow(TR("Predefinição", "Preset"), presetCombo_);
@@ -492,9 +493,17 @@ MainWindow::MainWindow(QWidget* parent, const QString& modelPath)
     saveFormatCombo_->addItem(TR("WebP", "WebP"));
     outputForm->addRow(TR("Formato", "Format"),
                        saveFormatCombo_);
-    inspectorLayout->addLayout(outputForm);
-    inspectorLayout->addWidget(refineCheckBox_);
-    inspectorLayout->addWidget(noiseCheckBox_);
+    secOutputLayout->addLayout(outputForm);
+
+    // Ajustes agrupados numa superficie propria: leem-se como um
+    // bloco coerente em vez de 5 linhas soltas.
+    auto* settingsBlock = new QFrame;
+    settingsBlock->setObjectName("settingsBlock");
+    auto* settingsBlockLayout = new QVBoxLayout(settingsBlock);
+    settingsBlockLayout->setContentsMargins(11, 10, 11, 10);
+    settingsBlockLayout->setSpacing(6);
+    settingsBlockLayout->addWidget(refineCheckBox_);
+    settingsBlockLayout->addWidget(noiseCheckBox_);
     auto* noiseRow = new QHBoxLayout;
     noiseRow->setContentsMargins(22, 0, 0, 0);
     noiseThresholdSpin_->setRange(0, 255);
@@ -505,35 +514,38 @@ MainWindow::MainWindow(QWidget* parent, const QString& modelPath)
            "Alpha below this value becomes fully transparent"));
     noiseRow->addWidget(new QLabel(TR("Limiar", "Threshold")));
     noiseRow->addWidget(noiseThresholdSpin_, 1);
-    inspectorLayout->addLayout(noiseRow);
-    inspectorLayout->addWidget(stickerCheckBox_);
-    inspectorLayout->addWidget(shadowCheckBox_);
+    settingsBlockLayout->addLayout(noiseRow);
+    settingsBlockLayout->addWidget(stickerCheckBox_);
+    settingsBlockLayout->addWidget(shadowCheckBox_);
+    secOutputLayout->addWidget(settingsBlock);
 
-    auto* separatorTwo = new QFrame;
-    separatorTwo->setObjectName("inspectorSeparator");
-    separatorTwo->setFrameShape(QFrame::HLine);
-    inspectorLayout->addWidget(separatorTwo);
-    inspectorLayout->addWidget(sectionTitle(
-        TR("Correção manual & Ações", "Manual touch-up & Actions")));
+    // Fim da seccao 2: fecha e adiciona a seccao 3.
+    inspectorLayout->addWidget(secOutput);
+
+    auto* secManual = new CollapsibleSection(
+        TR("Correção manual & Ações", "Manual touch-up & Actions"),
+        false, this);
+    auto* secManualLayout = secManual->contentLayout();
     auto* brushForm = new QFormLayout;
     brushForm->setRowWrapPolicy(QFormLayout::WrapAllRows);
     brushForm->addRow(TR("Pincel", "Brush"), brushModeCombo_);
     brushForm->addRow(TR("Tamanho", "Size"), brushRadiusSpin_);
-    inspectorLayout->addLayout(brushForm);
+    secManualLayout->addLayout(brushForm);
     auto* undoRow = new QHBoxLayout;
     undoRow->addWidget(btnUndo_);
     undoRow->addWidget(btnRedo_);
-    inspectorLayout->addLayout(undoRow);
+    secManualLayout->addLayout(undoRow);
     auto* actionRow = new QHBoxLayout;
     actionRow->addWidget(btnAutoCrop_);
     actionRow->addWidget(btnDragOut_);
-    inspectorLayout->addLayout(actionRow);
+    secManualLayout->addLayout(actionRow);
     auto* brushHint = new QLabel(TR(
         "Após remover o fundo, use o pincel para corrigir detalhes, faça auto-recorte ou arraste o resultado.",
         "After removing the background, use the brush to touch up details, auto-crop or drag the result."));
     brushHint->setObjectName("inspectorHint");
     brushHint->setWordWrap(true);
-    inspectorLayout->addWidget(brushHint);
+    secManualLayout->addWidget(brushHint);
+    inspectorLayout->addWidget(secManual);
     inspectorLayout->addStretch();
 
     // O inspector vive dentro de uma area rolavel: com janelas baixas
@@ -587,6 +599,9 @@ MainWindow::MainWindow(QWidget* parent, const QString& modelPath)
     btnSelectOutput_->setText(TR("Salvar em…", "Save to…"));
     batchLayout->addWidget(btnSelectOutput_);
     batchLayout->addWidget(btnProcessBatch_);
+    // Grupo da imagem separado do lote por espaco elastico: as duas
+    // funcoes nao se misturam visualmente numa barra cheia.
+    batchLayout->addStretch(1);
     btnCopy_->setObjectName("copyButton");
     btnCopy_->setToolTip(
         TR("Copiar resultado para a area de transferencia (Ctrl+Shift+C)",

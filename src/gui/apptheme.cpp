@@ -97,9 +97,19 @@ QString stylesheet(bool dark)
     q += QString("QLabel#previewTitle { padding: 11px 13px;"
                  " font-weight: 600; color: %1; background: %2;"
                  " border-bottom: 1px solid %3; }\n").arg(text, surface, border);
-    q += QString("QLabel#inspectorTitle { font-size: 14px;"
-                 " font-weight: 600; color: %1; }\n").arg(text);
+    q += QString("QLabel#inspectorTitle { font-size: 12px;"
+                 " font-weight: 700; color: %1; letter-spacing: 0.6px;"
+                 " text-transform: uppercase; }\n").arg(muted);
     q += "QLabel#inspectorHint { font-size: 12px; line-height: 1.35; }\n";
+    // Foco visivel em inputs: sem isto, saltar entre campos com o
+    // Tab nao da nenhuma indicacao de onde o utilizador esta.
+    q += QString("QLineEdit:focus, QComboBox:focus, QSpinBox:focus {"
+                 " border: 1px solid %1; }\n").arg(accent);
+    // Tooltips com o tema (o Fusion por omissao usa amarelo/escuro
+    // do sistema, que destoa de ambos os temas).
+    q += QString("QToolTip { background: %1; color: %2;"
+                 " border: 1px solid %3; border-radius: 6px; padding: 5px; }\n")
+             .arg(surface, text, border);
     q += QString("QLabel#batchTitle { font-weight: 700; color: %1; }\n")
              .arg(text);
     q += QString("QScrollArea { background: %1; border: 0; }\n").arg(inputBg);
@@ -126,11 +136,29 @@ QString stylesheet(bool dark)
              .arg(accentHov);
     q += QString("QPushButton#logToggle { background: transparent; border: 0;"
                  " color: %1; text-align: left; }\n").arg(muted);
+    q += QString("QPushButton#zoomButton:hover { background: %1; }\n")
+             .arg(hover);
     q += "QPushButton#zoomButton { min-width: 30px; max-width: 30px;"
          " padding: 6px; font-size: 16px; }\n";
+    // Copiar e acao secundaria: nao compete com "Salvar" (verde).
+    q += QString("QPushButton#copyButton { background: transparent; }\n");
     q += "QPushButton#fitButton { padding: 6px 9px; font-size: 12px; }\n";
     q += "QPushButton#themeToggle { padding: 6px 10px; font-size: 12px; }\n";
     q += QString("QFrame#inspectorSeparator { color: %1; }\n").arg(border);
+    // Bloco de ajustes agrupa os checkboxes/limiar numa unica
+    // superficie, para se lerem como "um grupo" em vez de linhas
+    // soltas com o mesmo peso visual.
+    q += QString("QFrame#settingsBlock { background: %1;"
+                 " border: 1px solid %2; border-radius: 8px; }\n")
+             .arg(dark ? logBg : hover, border);
+    q += "QFrame#settingsBlock QCheckBox { background: transparent; }\n";
+    q += QString("QCheckBox::indicator { width: 15px; height: 15px; }\n");
+    q += QString("QCheckBox::indicator:unchecked {"
+                 " border: 1px solid %1; border-radius: 4px;"
+                 " background: %2; }\n").arg(border, inputBg);
+    q += QString("QCheckBox::indicator:checked {"
+                 " border: 1px solid %1; border-radius: 4px;"
+                 " background: %1; }\n").arg(accent);
     q += QString("QSplitter::handle { background: %1; }\n").arg(bg);
 
     // Abas principais (Editor / Modelos)
