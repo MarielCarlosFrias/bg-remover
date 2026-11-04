@@ -448,7 +448,7 @@ else()
     set(CPACK_DEBIAN_PACKAGE_MAINTAINER
         "Mariel Carlos Frias <MarielCarlosFrias@users.noreply.github.com>")
     set(CPACK_DEBIAN_PACKAGE_HOMEPAGE
-        "https://github.com/MarielCarlosFrias/bg-remover")
+        "https://github.com/MarielCarlosFrias/aletheia")
     set(CPACK_DEBIAN_PACKAGE_DEPENDS
         "libqt6widgets6, libqt6network6")
     # WebP e opcional: sem o plugin o programa continua a funcionar

@@ -31,10 +31,10 @@
   </description>
 
   <launchable type="desktop-id">aletheia.desktop</launchable>
-  <url type="homepage">https://github.com/MarielCarlosFrias/bg-remover</url>
-  <url type="bugtracker">https://github.com/MarielCarlosFrias/bg-remover/issues</url>
-  <url type="vcs-browser">https://github.com/MarielCarlosFrias/bg-remover</url>
-  <url type="contribute">https://github.com/MarielCarlosFrias/bg-remover/blob/main/CONTRIBUTING.md</url>
+  <url type="homepage">https://github.com/MarielCarlosFrias/aletheia</url>
+  <url type="bugtracker">https://github.com/MarielCarlosFrias/aletheia/issues</url>
+  <url type="vcs-browser">https://github.com/MarielCarlosFrias/aletheia</url>
+  <url type="contribute">https://github.com/MarielCarlosFrias/aletheia/blob/main/CONTRIBUTING.md</url>
 
   <developer id="github.com.marielcarlosfrias">
     <name>MarielCarlosFrias</name>
@@ -58,7 +58,7 @@
 
   <screenshots>
     <screenshot type="default">
-      <image type="source">https://raw.githubusercontent.com/MarielCarlosFrias/bg-remover/main/docs/images/bg-remover-editor.png</image>
+      <image type="source">https://raw.githubusercontent.com/MarielCarlosFrias/aletheia/main/docs/images/bg-remover-editor.png</image>
       <caption>Editor with the original image and the transparent result</caption>
       <caption xml:lang="pt-BR">Editor com a imagem original e o resultado transparente</caption>
     </screenshot>

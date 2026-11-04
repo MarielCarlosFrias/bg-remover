@@ -1,11 +1,11 @@
 blank_issues_enabled: false
 contact_links:
   - name: Relatar vulnerabilidade (privado)
-    url: https://github.com/MarielCarlosFrias/bg-remover/security/advisories/new
+    url: https://github.com/MarielCarlosFrias/aletheia/security/advisories/new
     about: Não abra uma issue pública para problemas de segurança. Use o canal privado.
   - name: Documentação e compilação
-    url: https://github.com/MarielCarlosFrias/bg-remover/blob/main/README.md
+    url: https://github.com/MarielCarlosFrias/aletheia/blob/main/README.md
     about: Requisitos, comandos de build, uso do CLI e empacotamento.
   - name: Guia de contribuição
-    url: https://github.com/MarielCarlosFrias/bg-remover/blob/main/CONTRIBUTING.md
+    url: https://github.com/MarielCarlosFrias/aletheia/blob/main/CONTRIBUTING.md
     about: Como preparar o ambiente, testar e enviar um pull request.

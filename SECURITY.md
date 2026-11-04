@@ -11,7 +11,7 @@ reportar.
 **Não abra uma issue pública.** Use o canal privado de Security Advisories do
 GitHub:
 
-1. Abra <https://github.com/MarielCarlosFrias/bg-remover/security/advisories/new>.
+1. Abra <https://github.com/MarielCarlosFrias/aletheia/security/advisories/new>.
 2. Descreva o impacto, a versão afetada, os passos para reproduzir e, se
    possível, uma proposta de correção.
 3. Indique se pretende ser creditado no aviso.

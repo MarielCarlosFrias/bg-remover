@@ -54,7 +54,7 @@ void HelpWidget::rebuildHtml()
 
     // Repositorio do projeto (ajuste aqui se o repositorio mudar).
     const QString repo =
-        QStringLiteral("https://github.com/MarielCarlosFrias/bg-remover");
+        QStringLiteral("https://github.com/MarielCarlosFrias/aletheia");
     const QString issues = repo + QStringLiteral("/issues");
     const QString profile =
         QStringLiteral("https://github.com/MarielCarlosFrias");

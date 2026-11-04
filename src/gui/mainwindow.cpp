@@ -1247,7 +1247,7 @@ void MainWindow::checkForUpdate()
     updateNam_ = new QNetworkAccessManager(this);
 
     QNetworkRequest request(QUrl(QStringLiteral(
-        "https://api.github.com/repos/MarielCarlosFrias/bg-remover"
+        "https://api.github.com/repos/MarielCarlosFrias/aletheia"
         "/releases/latest")));
     request.setRawHeader("Accept", "application/vnd.github+json");
     request.setRawHeader("User-Agent",
@@ -1306,7 +1306,7 @@ void MainWindow::showUpdateBanner(const QString& version)
     // Banner clicavel no topo do workspace. O texto tem de ser
     // rich text com <a href>; sem isso linkActivated nunca dispara.
     const QUrl releasesUrl(QStringLiteral(
-        "https://github.com/MarielCarlosFrias/bg-remover/releases"));
+        "https://github.com/MarielCarlosFrias/aletheia/releases"));
     updateBanner_->setTextFormat(Qt::RichText);
     updateBanner_->setOpenExternalLinks(false);
     updateBanner_->setTextInteractionFlags(Qt::LinksAccessibleByMouse);

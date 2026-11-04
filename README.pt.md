@@ -2,8 +2,8 @@
 
 [![English](https://img.shields.io/badge/Language-English-blue.svg)](README.md)
 [![Português](https://img.shields.io/badge/Idioma-Portugu%C3%AAs-green.svg)](README.pt.md)
-[![CI](https://github.com/MarielCarlosFrias/bg-remover/actions/workflows/ci.yml/badge.svg)](https://github.com/MarielCarlosFrias/bg-remover/actions/workflows/ci.yml)
-[![Release](https://github.com/MarielCarlosFrias/bg-remover/actions/workflows/release.yml/badge.svg)](https://github.com/MarielCarlosFrias/bg-remover/actions/workflows/release.yml)
+[![CI](https://github.com/MarielCarlosFrias/aletheia/actions/workflows/ci.yml/badge.svg)](https://github.com/MarielCarlosFrias/aletheia/actions/workflows/ci.yml)
+[![Release](https://github.com/MarielCarlosFrias/aletheia/actions/workflows/release.yml/badge.svg)](https://github.com/MarielCarlosFrias/aletheia/actions/workflows/release.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Qt 6](https://img.shields.io/badge/Qt-6-41cd52.svg)](https://www.qt.io/)
 [![Platforms](https://img.shields.io/badge/platforms-Linux%20%7C%20Windows%20%7C%20macOS-blue.svg)](#download-pronto-sem-compilar)
@@ -41,7 +41,7 @@ Sem envio de fotos para a nuvem, sem assinaturas ou APIs pagas, sem necessidade 
 
 Binários prontos para uso são gerados e testados automaticamente em cada versão:
 
-👉 [**Baixar a Versão Mais Recente (v1.2.0)**](https://github.com/MarielCarlosFrias/bg-remover/releases/latest)
+👉 [**Baixar a Versão Mais Recente (v1.2.0)**](https://github.com/MarielCarlosFrias/aletheia/releases/latest)
 
 | Plataforma | Pacote | Descrição |
 | :--- | :--- | :--- |
@@ -149,8 +149,8 @@ aletheia_cli --version
 ### Linux (Ubuntu / Debian)
 ```bash
 sudo apt update && sudo apt install -y build-essential cmake qt6-base-dev qt6-image-formats-plugins
-git clone https://github.com/MarielCarlosFrias/bg-remover.git
-cd bg-remover
+git clone https://github.com/MarielCarlosFrias/aletheia.git
+cd aletheia
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBG_REMOVER_FETCH_ONNX_RUNTIME=ON
 cmake --build build -j 2
 ./build/aletheia
